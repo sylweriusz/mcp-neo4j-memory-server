@@ -1,0 +1,52 @@
+{
+  "name": "@sylweriusz/mcp-neo4j-memory-server",
+  "version": "1.0.0",
+  "private": false,
+  "description": "MCP Memory Server with Neo4j backend",
+  "homepage": "https://github.com/sylweriusz/mcp-neo4j-memory-server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sylweriusz/mcp-neo4j-memory-server.git"
+  },
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "pnpm build && npx @modelcontextprotocol/inspector pnpm start",
+    "build": "tsup && shx chmod +x dist/index.mjs",
+    "start": "node dist/index.mjs",
+    "prepare": "npm run build"
+  },
+  "bin": {
+    "mcp-neo4j-memory-server": "dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "memory",
+    "knowledge",
+    "graph",
+    "neo4j"
+  ],
+  "author": "sylweriusz",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "fuse.js": "^7.1.0",
+    "neo4j-driver": "^5.18.0",
+    "ts-node": "^10.9.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "prettier": "^3.5.2",
+    "shx": "^0.3.4",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}

@@ -14,7 +14,8 @@
     "dev": "pnpm build && npx @modelcontextprotocol/inspector pnpm start",
     "build": "tsup && shx chmod +x dist/index.mjs",
     "start": "node dist/index.mjs",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "vitest run"
   },
   "bin": {
     "mcp-neo4j-memory-server": "dist/index.mjs"
@@ -44,7 +45,8 @@
     "prettier": "^3.5.2",
     "shx": "^0.3.4",
     "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
   },
   "engines": {
     "node": "22.x"

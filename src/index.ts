@@ -4,7 +4,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { Neo4jKnowledgeGraphManager } from "./manager";
 import { NullLogger } from "./logger";
-import { EntityObject, ObservationObject, RelationObject } from "./types";
+import { EntityObject, ObservationObject, RelationObject, DatabaseSwitchObject } from "./types";
+import { DatabaseManager } from "./database_manager";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -32,6 +33,9 @@ const knowledgeGraphManager = new Neo4jKnowledgeGraphManager(
   },
   logger
 );
+
+// Create Database Manager for database operations
+const databaseManager = new DatabaseManager(knowledgeGraphManager);
 
 // Create entities tool
 server.tool(
@@ -210,7 +214,140 @@ server.tool(
   })
 );
 
+// Switch database tool
+server.tool(
+  "switch_database",
+  "Switch to a different Neo4j database or create a new one if it doesn't exist",
+  {
+    databaseName: z
+      .string()
+      .describe("The name of the database to switch to"),
+    createIfNotExists: z
+      .boolean()
+      .optional()
+      .describe("Whether to create the database if it doesn't exist"),
+  },
+  async ({ databaseName, createIfNotExists = false }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await databaseManager.switchDatabase(databaseName, createIfNotExists),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
+// Get current database tool
+server.tool(
+  "get_current_database",
+  "Get information about the current Neo4j database",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          databaseManager.getCurrentDatabase(),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
+// List databases tool
+server.tool(
+  "list_databases",
+  "List all available Neo4j databases",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await databaseManager.listDatabases(),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
 const main = async () => {
+
+// Create Database Manager for database operations
+const databaseManager = new DatabaseManager(knowledgeGraphManager);
+
+// Switch database tool
+server.tool(
+  "switch_database",
+  "Switch to a different Neo4j database or create a new one if it doesn't exist",
+  {
+    databaseName: z
+      .string()
+      .describe("The name of the database to switch to"),
+    createIfNotExists: z
+      .boolean()
+      .optional()
+      .describe("Whether to create the database if it doesn't exist"),
+  },
+  async ({ databaseName, createIfNotExists = false }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await databaseManager.switchDatabase(databaseName, createIfNotExists),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
+// Get current database tool
+server.tool(
+  "get_current_database",
+  "Get information about the current Neo4j database",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          databaseManager.getCurrentDatabase(),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
+// List databases tool
+server.tool(
+  "list_databases",
+  "List all available Neo4j databases",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await databaseManager.listDatabases(),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logger.info("Neo4j Knowledge Graph MCP Server running on stdio");

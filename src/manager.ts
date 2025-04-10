@@ -25,6 +25,12 @@ export class Neo4jKnowledgeGraphManager
   private initialized: boolean = false;
   private database: string;
   private logger: Logger;
+  private neo4jConfig: { 
+    uri: string; 
+    username: string; 
+    password: string; 
+    database: string; 
+  };
 
   /**
    * Constructor
@@ -40,14 +46,14 @@ export class Neo4jKnowledgeGraphManager
     },
     logger?: Logger
   ) {
-    const config = neo4jConfigProvider();
-    this.database = config.database;
+    this.neo4jConfig = neo4jConfigProvider();
+    this.database = this.neo4jConfig.database;
     this.logger = logger || new ConsoleLogger();
 
     // Neo4j driver initialization
     this.driver = neo4j.driver(
-      config.uri,
-      neo4j.auth.basic(config.username, config.password)
+      this.neo4jConfig.uri,
+      neo4j.auth.basic(this.neo4jConfig.username, this.neo4jConfig.password)
     );
 
     // Initialize Fuse.js for fuzzy searching
@@ -64,6 +70,15 @@ export class Neo4jKnowledgeGraphManager
    */
   private getSession(): Session {
     return this.driver.session({ database: this.database });
+  }
+  
+  /**
+   * Get a system session - useful for database management operations
+   * This method is intended for internal use by DatabaseManager
+   * @protected
+   */
+  protected getSystemSession(): Session {
+    return this.driver.session({ database: "system" });
   }
 
   /**

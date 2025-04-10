@@ -50,6 +50,24 @@ export type KnowledgeGraph = {
 };
 
 /**
+ * Database information returned when switching databases
+ */
+export type DatabaseInfo = {
+  previousDatabase: string;
+  currentDatabase: string;
+  created: boolean;
+};
+
+/**
+ * Database switch request object schema
+ */
+export const DatabaseSwitchObject = z.object({
+  databaseName: z.string().describe("The name of the database to switch to"),
+  createIfNotExists: z.boolean().optional().describe("Whether to create the database if it doesn't exist"),
+});
+export type DatabaseSwitch = z.infer<typeof DatabaseSwitchObject>;
+
+/**
  * The KnowledgeGraphManagerInterface is the primary interface for interacting with the knowledge graph
  */
 export type KnowledgeGraphManagerInterface = {
@@ -61,4 +79,7 @@ export type KnowledgeGraphManagerInterface = {
   deleteRelations(relations: Relation[]): Promise<void>;
   searchNodes(query: string): Promise<KnowledgeGraph>;
   openNodes(names: string[]): Promise<KnowledgeGraph>;
+  switchDatabase?(databaseName: string, createIfNotExists?: boolean): Promise<DatabaseInfo>;
+  getCurrentDatabase?(): { database: string; uri: string };
+  listDatabases?(): Promise<string[]>;
 };

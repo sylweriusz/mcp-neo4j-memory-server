@@ -1,3 +1,56 @@
-node_modules
+pliki.tmp
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Baza danych
+/db/*.db
+/db/*.sqlite3
+/db/*.sqlite
+
+# Środowisko wirtualne
+venv/
+ENV/
+.env
+
+# Logi
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# System
+.DS_Store
+Thumbs.db
+
+# Inne
+*.tmp
+*.bak
+*.pidpackage-lock.json
+node_modules/
 dist
 .env
+package-lock.json
+coverage/

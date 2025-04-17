@@ -214,6 +214,25 @@ server.tool(
   })
 );
 
+// List entity summaries tool
+server.tool(
+  "list_entities",
+  "Get a lightweight list of all entities with their names and types (without loading full observation content)",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await knowledgeGraphManager.getEntitySummaries(),
+          null,
+          2
+        ),
+      },
+    ],
+  })
+);
+
 // Switch database tool
 server.tool(
   "switch_database",
@@ -277,6 +296,67 @@ server.tool(
       },
     ],
   })
+);
+
+// Get entity list - special lightweight tool for getting list of all entities
+server.tool(
+  "get_entity_list",
+  "Get a simple list of all entity names and types without loading observations (lightweight operation)",
+  {},
+  async () => {
+    // Make sure we're initialized
+    if (!knowledgeGraphManager["initialized"]) {
+      await knowledgeGraphManager.createEntities([]);
+    }
+
+    const session = knowledgeGraphManager["getSession"]();
+    try {
+      // Retrieve just entity names and types without observations
+      const result = await session.run(`
+        MATCH (e:Entity)
+        RETURN e.name AS name, e.entityType AS entityType
+      `);
+
+      // Convert Neo4j records to simplified Entity objects
+      const entities = result.records.map((record) => {
+        return {
+          name: record.get("name"),
+          entityType: record.get("entityType")
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                entities,
+                message: "This is a lightweight response with only entity names and types. For detailed information about specific entities, use open_nodes with the entity names."
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { error: "Error getting entity list", details: String(error) },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } finally {
+      await session.close();
+    }
+  }
 );
 
 const main = async () => {

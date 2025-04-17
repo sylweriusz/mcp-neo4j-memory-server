@@ -575,8 +575,24 @@ export class Neo4jKnowledgeGraphManager
   async searchNodes(query: string): Promise<KnowledgeGraph> {
     if (!this.initialized) await this.initialize();
 
-    if (!query || query.trim() === "") {
-      return { entities: [], relations: [] };
+    // Special case for wildcard "*" or empty string - return all entity summaries without observations
+    if (query === "*" || !query || query.trim() === "") {
+      const summaries = await this.getEntitySummaries();
+      
+      // Convert summaries to entities with empty observations
+      const entities: Entity[] = summaries.map(summary => ({
+        ...summary,
+        observations: [] // Empty observations to keep it lightweight
+      }));
+      
+      return { 
+        entities,
+        relations: [],
+        _meta: {
+          isLightweight: true,
+          message: "This is a lightweight response. For detailed information about a specific entity, use the open_nodes tool with the entity name."
+        }
+      };
     }
 
     // Get all entities for fuzzy search
@@ -744,6 +760,36 @@ export class Neo4jKnowledgeGraphManager
     } catch (error) {
       this.logger.error("Error opening nodes", extractError(error));
       return { entities: [], relations: [] };
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get all entity names and types (lightweight operation)
+   * @returns Array of entities with only name and type (no observations)
+   */
+  async getEntitySummaries(): Promise<{ name: string; entityType: string }[]> {
+    if (!this.initialized) await this.initialize();
+
+    const session = this.getSession();
+    try {
+      // Retrieve just entity names and types without observations
+      const result = await session.run(`
+        MATCH (e:Entity)
+        RETURN e.name AS name, e.entityType AS entityType
+      `);
+
+      // Convert Neo4j records to simplified Entity objects
+      return result.records.map((record) => {
+        return {
+          name: record.get("name"),
+          entityType: record.get("entityType")
+        };
+      });
+    } catch (error) {
+      this.logger.error("Error getting entity summaries", extractError(error));
+      return [];
     } finally {
       await session.close();
     }

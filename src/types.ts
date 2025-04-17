@@ -47,6 +47,11 @@ export type Observation = z.infer<typeof ObservationObject>;
 export type KnowledgeGraph = {
   entities: Entity[];
   relations: Relation[];
+  _meta?: {
+    isLightweight?: boolean;
+    message?: string;
+    [key: string]: any;
+  };
 };
 
 /**
@@ -79,6 +84,7 @@ export type KnowledgeGraphManagerInterface = {
   deleteRelations(relations: Relation[]): Promise<void>;
   searchNodes(query: string): Promise<KnowledgeGraph>;
   openNodes(names: string[]): Promise<KnowledgeGraph>;
+  getEntitySummaries(): Promise<{ name: string; entityType: string }[]>;
   switchDatabase?(databaseName: string, createIfNotExists?: boolean): Promise<DatabaseInfo>;
   getCurrentDatabase?(): { database: string; uri: string };
   listDatabases?(): Promise<string[]>;

@@ -66,7 +66,10 @@ export class DatabaseManager {
           await systemSession.run(`CREATE DATABASE $databaseName IF NOT EXISTS`, {
             databaseName,
           });
-          console.log(`Created new database: ${databaseName}`);
+          // Use this.manager's logger instead of console.log to avoid JSON parsing issues
+          if (this.manager['logger'] && this.manager['logger'].info) {
+            this.manager['logger'].info(`Created new database: ${databaseName}`);
+          }
         } finally {
           await systemSession.close();
         }

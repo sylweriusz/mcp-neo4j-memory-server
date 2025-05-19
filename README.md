@@ -11,6 +11,7 @@
 - **Enhanced Tag Extraction**: Multilingual keyword extraction with semantic deduplication
 - **Neo4j Compatibility**: Works with Community, Enterprise, and AuraDB
 
+
 ## Memory system architecture
 
 ```mermaid

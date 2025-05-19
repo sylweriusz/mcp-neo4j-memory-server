@@ -15,7 +15,7 @@ dotenv.config();
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.0.1"  // Version with Smithery lazy loading fix
+  version: "2.0.2"  // Version with deep lazy loading fix
 });
 
 const logger = new NullLogger();

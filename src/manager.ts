@@ -32,16 +32,17 @@ dotenv.config();
 export class Neo4jKnowledgeGraphManager
   implements KnowledgeGraphManagerInterface
 {
-  private driver: Driver;
+  private driver: Driver | null = null;
   private initialized: boolean = false;
-  private database: string;
+  private database: string | null = null;
   private logger: Logger;
   private neo4jConfig: { 
     uri: string; 
     username: string; 
     password: string; 
     database: string; 
-  };
+  } | null = null;
+  private searchEngine?: EnhancedUnifiedSearch;
 
   /**
    * Constructor
@@ -49,7 +50,7 @@ export class Neo4jKnowledgeGraphManager
    * @param logger Optional logger instance
    */
   constructor(
-    neo4jConfigProvider: () => {
+    private neo4jConfigProvider: () => {
       uri: string;
       username: string;
       password: string;
@@ -57,15 +58,23 @@ export class Neo4jKnowledgeGraphManager
     },
     logger?: Logger
   ) {
-    this.neo4jConfig = neo4jConfigProvider();
-    this.database = this.neo4jConfig.database;
     this.logger = logger || new ConsoleLogger();
+    // Lazy initialization - don't connect to database in constructor
+  }
 
-    // Neo4j driver initialization
-    this.driver = neo4j.driver(
-      this.neo4jConfig.uri,
-      neo4j.auth.basic(this.neo4jConfig.username, this.neo4jConfig.password)
-    );
+  /**
+   * Ensure driver is initialized
+   * @private
+   */
+  private ensureDriver(): void {
+    if (!this.driver) {
+      this.neo4jConfig = this.neo4jConfigProvider();
+      this.database = this.neo4jConfig.database;
+      this.driver = neo4j.driver(
+        this.neo4jConfig.uri,
+        neo4j.auth.basic(this.neo4jConfig.username, this.neo4jConfig.password)
+      );
+    }
   }
 
   /**
@@ -73,7 +82,8 @@ export class Neo4jKnowledgeGraphManager
    * @public - needed for database manager access
    */
   getSession(): Session {
-    return this.driver.session({ database: this.database });
+    this.ensureDriver();
+    return this.driver!.session({ database: this.database! });
   }
   
   /**
@@ -82,7 +92,8 @@ export class Neo4jKnowledgeGraphManager
    * @protected
    */
   protected getSystemSession(): Session {
-    return this.driver.session({ database: "system" });
+    this.ensureDriver();
+    return this.driver!.session({ database: "system" });
   }
 
   /**

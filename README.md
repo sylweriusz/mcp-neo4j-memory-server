@@ -127,7 +127,7 @@ graph TB
 ## Quick Start
 
 ```bash
-npm install @sylweriusz/mcp-neo4j-memory-server
+npm install @sylweriusz/mcp-neo4j-memory-v2
 ```
 
 Add to `claude_desktop_config.json`:
@@ -137,7 +137,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "memory": {
       "command": "npx",
-      "args": ["-y", "@sylweriusz/mcp-neo4j-memory-server"],
+      "args": ["-y", "@sylweriusz/mcp-neo4j-memory-v2"],
       "env": {
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USERNAME": "neo4j", 

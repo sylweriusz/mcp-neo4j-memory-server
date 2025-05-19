@@ -2,9 +2,16 @@ import { Neo4jKnowledgeGraphManager } from "./manager";
 import { DatabaseInfo } from "./types";
 import { Session } from "neo4j-driver";
 import { extractError } from "./utils";
+import { ensureVectorIndexes } from "./vector/support";
 
 /**
- * Extends the Neo4jKnowledgeGraphManager with database switching functionality
+ * Extends the Neo4jKnowledgeGraphManager with database management functionality
+ * 
+ * Primary responsibility:
+ * - Database context switching with automatic creation
+ * - Centralized management for database operations
+ * 
+ * Note: Index management handled through select_database tool implementation
  */
 export class DatabaseManager {
   private manager: Neo4jKnowledgeGraphManager;
@@ -30,7 +37,15 @@ export class DatabaseManager {
   }
   
   /**
-   * Switch to a different database
+   * Switch to a different database with optional auto-creation
+   * 
+   * Core operations:
+   * 1. Validate database name
+   * 2. Check if database exists
+   * 3. Create database if requested and needed
+   * 4. Switch context to new database
+   * 5. Force re-initialization of schema  
+   * 
    * @param databaseName Name of the database to switch to
    * @param createIfNotExists Whether to create the database if it doesn't exist
    * @returns Information about the database operation
@@ -66,10 +81,7 @@ export class DatabaseManager {
           await systemSession.run(`CREATE DATABASE $databaseName IF NOT EXISTS`, {
             databaseName,
           });
-          // Use this.manager's logger instead of console.log to avoid JSON parsing issues
-          if (this.manager['logger'] && this.manager['logger'].info) {
-            this.manager['logger'].info(`Created new database: ${databaseName}`);
-          }
+          // Database created silently to avoid log noise
         } finally {
           await systemSession.close();
         }
@@ -86,8 +98,36 @@ export class DatabaseManager {
       // Reset initialization flag to force re-initialization with the new database
       (this.manager as any).initialized = false;
       
-      // Initialize the new database by calling a public method
-      await this.manager.createEntities([]);
+      // Initialize the new database by calling initialize method directly
+      const initSession = this.manager.getSession();
+      try {
+        // Just force initialization by accessing the private initialize method
+        await (this.manager as any).initialize();
+      } finally {
+        await initSession.close();
+      }
+
+      // Ensure vector indexes are created
+      const vectorSession = this.manager.getSession();
+      try {
+        await ensureVectorIndexes(vectorSession);
+      } finally {
+        await vectorSession.close();
+      }
+
+      // FIX #1: Ensure ALL indexes including metadata fulltext index after database switch
+      const indexSession = this.manager.getSession();
+      try {
+        // Create the metadata fulltext index specifically for the new database
+        await indexSession.run(
+          `CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]`
+        );
+      } catch (error) {
+        // Silent failure in MCP environment - log to stderr if needed
+        console.error('Warning: Failed to create metadata fulltext index:', error.message);
+      } finally {
+        await indexSession.close();
+      }
 
       return {
         previousDatabase: oldDatabase,
@@ -101,9 +141,15 @@ export class DatabaseManager {
   }
 
   /**
-   * Get current database information
-   * @returns Information about the current database
+   * Get current database session - needed for vector search operations
+   * @returns Session for the current database
    */
+  getSession(): Session {
+    // Access the private getSession method of the manager
+    return typeof this.manager['getSession'] === 'function' 
+      ? this.manager['getSession']() 
+      : (this.manager as any).driver.session({ database: (this.manager as any).database });
+  }
   getCurrentDatabase(): { database: string; uri: string } {
     return {
       database: (this.manager as any).database,

@@ -4,25 +4,22 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { Neo4jKnowledgeGraphManager } from "./manager";
 import { NullLogger } from "./logger";
-import { EntityObject, ObservationObject, RelationObject, DatabaseSwitchObject } from "./types";
 import { DatabaseManager } from "./database_manager";
+import { ConsolidatedToolHandlers } from "./consolidated/handlers";
+import { MemoryObject } from "./types";
 import dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config();
 
-// Create an MCP server
+// Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "1.0.0",
+  version: "2.0.0"  // Initial 2.0 release
 });
 
 const logger = new NullLogger();
 const knowledgeGraphManager = new Neo4jKnowledgeGraphManager(
-  /**
-   * Get the Neo4j connection settings from environment variables
-   * @returns The Neo4j connection configuration
-   */
   () => {
     return {
       uri: process.env.NEO4J_URI || "bolt://localhost:7687",
@@ -37,352 +34,302 @@ const knowledgeGraphManager = new Neo4jKnowledgeGraphManager(
 // Create Database Manager for database operations
 const databaseManager = new DatabaseManager(knowledgeGraphManager);
 
-// Create entities tool
+// Create consolidated tool handlers
+const toolHandlers = new ConsolidatedToolHandlers(knowledgeGraphManager);
+
+// CONSOLIDATED TOOLS (6 total, down from 10)
+
+// Tool 1: Memory Management - Enhanced with examples
 server.tool(
-  "create_entities",
-  "Create multiple new entities in the knowledge graph",
+  "memory_manage",
+  "Create, update, or delete memories in the knowledge graph. This is the primary tool for managing memory lifecycle. Use 'memories' for create, 'updates' for update, and 'identifiers' for delete operations.",
   {
-    entities: z.array(EntityObject),
+    operation: z.enum(['create', 'update', 'delete']).describe("Operation type: 'create' for new memories, 'update' to modify existing ones, 'delete' to remove memories"),
+    memories: z.array(MemoryObject).optional().describe(`Memories to create. Each memory needs name, memoryType, and observations. Example:
+    [{
+      "name": "React Development Project",
+      "memoryType": "project", 
+      "observations": ["Building React app", "Using TypeScript"],
+      "metadata": {"status": "active"}
+    }]`),
+    updates: z.array(z.object({
+      id: z.string().describe("Memory ID to update (e.g., 'Bm\\\\jstsj8@yCf)wF>')"),
+      name: z.string().optional().describe("New name for the memory"),
+      memoryType: z.string().optional().describe("New memory type (e.g., 'project', 'research')"),
+      metadata: z.record(z.any()).optional().describe("New metadata object to replace existing"),
+      tags: z.array(z.string()).optional().describe("New tags (usually auto-generated from name)")
+    })).optional().describe(`Updates to apply. Example:
+    [{
+      "id": "Bm\\\\jstsj8@yCf)wF>",
+      "name": "Updated Memory Name",
+      "memoryType": "business"
+    }]`),
+    identifiers: z.array(z.string()).optional().describe(`Memory IDs to delete. Example: ["Bm\\\\jstsj8@yCf)wF>", "Bm\\\\abc123"]`)
   },
-  async ({ entities }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.createEntities(entities),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Create relations tool
-server.tool(
-  "create_relations",
-  "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice",
-  {
-    relations: z.array(RelationObject),
-  },
-  async ({ relations }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.createRelations(relations),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Add observations tool
-server.tool(
-  "add_observations",
-  "Add new observations to existing entities in the knowledge graph",
-  {
-    observations: z.array(ObservationObject),
-  },
-  async ({ observations }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.addObservations(observations),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Delete entities tool
-server.tool(
-  "delete_entities",
-  "Delete multiple entities and their associated relations from the knowledge graph",
-  {
-    entityNames: z
-      .array(z.string())
-      .describe("An array of entity names to delete"),
-  },
-  async ({ entityNames }) => {
-    await knowledgeGraphManager.deleteEntities(entityNames);
-    return {
-      content: [{ type: "text", text: "Entities deleted successfully" }],
-    };
-  }
-);
-
-// Delete observations tool
-server.tool(
-  "delete_observations",
-  "Delete specific observations from entities in the knowledge graph",
-  {
-    deletions: z.array(
-      z.object({
-        entityName: z
-          .string()
-          .describe("The name of the entity containing the observations"),
-        contents: z
-          .array(z.string())
-          .describe("An array of observations to delete"),
-      })
-    ),
-  },
-  async ({ deletions }) => {
-    await knowledgeGraphManager.deleteObservations(deletions);
-    return {
-      content: [{ type: "text", text: "Observations deleted successfully" }],
-    };
-  }
-);
-
-// Delete relations tool
-server.tool(
-  "delete_relations",
-  "Delete multiple relations from the knowledge graph",
-  {
-    relations: z
-      .array(
-        z.object({
-          from: z
-            .string()
-            .describe("The name of the entity where the relation starts"),
-          to: z
-            .string()
-            .describe("The name of the entity where the relation ends"),
-          relationType: z.string().describe("The type of the relation"),
-        })
-      )
-      .describe("An array of relations to delete"),
-  },
-  async ({ relations }) => {
-    await knowledgeGraphManager.deleteRelations(relations);
-    return {
-      content: [{ type: "text", text: "Relations deleted successfully" }],
-    };
-  }
-);
-
-// Search nodes tool
-server.tool(
-  "search_nodes",
-  "Search for nodes in the knowledge graph based on a query",
-  {
-    query: z
-      .string()
-      .describe(
-        "The search query to match against entity names, types, and observation content"
-      ),
-  },
-  async ({ query }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.searchNodes(query),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Open nodes tool
-server.tool(
-  "open_nodes",
-  "Open specific nodes in the knowledge graph by their names",
-  {
-    names: z.array(z.string()).describe("An array of entity names to retrieve"),
-  },
-  async ({ names }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.openNodes(names),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// List entity summaries tool
-server.tool(
-  "list_entities",
-  "Get a lightweight list of all entities with their names and types (without loading full observation content)",
-  {},
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await knowledgeGraphManager.getEntitySummaries(),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Switch database tool
-server.tool(
-  "switch_database",
-  "Switch to a different Neo4j database or create a new one if it doesn't exist",
-  {
-    databaseName: z
-      .string()
-      .describe("The name of the database to switch to"),
-    createIfNotExists: z
-      .boolean()
-      .optional()
-      .describe("Whether to create the database if it doesn't exist"),
-  },
-  async ({ databaseName, createIfNotExists = false }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await databaseManager.switchDatabase(databaseName, createIfNotExists),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Get current database tool
-server.tool(
-  "get_current_database",
-  "Get information about the current Neo4j database",
-  {},
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          databaseManager.getCurrentDatabase(),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// List databases tool
-server.tool(
-  "list_databases",
-  "List all available Neo4j databases",
-  {},
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          await databaseManager.listDatabases(),
-          null,
-          2
-        ),
-      },
-    ],
-  })
-);
-
-// Get entity list - special lightweight tool for getting list of all entities
-server.tool(
-  "get_entity_list",
-  "Get a simple list of all entity names and types without loading observations (lightweight operation)",
-  {},
-  async () => {
-    // Make sure we're initialized
-    if (!knowledgeGraphManager["initialized"]) {
-      await knowledgeGraphManager.createEntities([]);
-    }
-
-    const session = knowledgeGraphManager["getSession"]();
+  async ({ operation, memories, updates, identifiers }) => {
     try {
-      // Retrieve just entity names and types without observations
-      const result = await session.run(`
-        MATCH (e:Entity)
-        RETURN e.name AS name, e.entityType AS entityType
-      `);
-
-      // Convert Neo4j records to simplified Entity objects
-      const entities = result.records.map((record) => {
-        return {
-          name: record.get("name"),
-          entityType: record.get("entityType")
-        };
-      });
-
+      let result;
+      switch (operation) {
+        case 'create':
+          if (!memories) throw new Error("memories field required for create operation");
+          result = await toolHandlers.handleMemoryManage({ operation, memories });
+          break;
+        case 'update':
+          if (!updates) throw new Error("updates field required for update operation");
+          result = await toolHandlers.handleMemoryManage({ operation, updates });
+          break;
+        case 'delete':
+          if (!identifiers) throw new Error("identifiers field required for delete operation");
+          result = await toolHandlers.handleMemoryManage({ operation, identifiers });
+          break;
+        default:
+          throw new Error(`Invalid operation: ${operation}`);
+      }
+      
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                entities,
-                message: "This is a lightweight response with only entity names and types. For detailed information about specific entities, use open_nodes with the entity names."
-              },
-              null,
-              2
-            ),
-          },
-        ],
+        content: [{
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        }],
       };
     } catch (error) {
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              { error: "Error getting entity list", details: String(error) },
-              null,
-              2
-            ),
-          },
-        ],
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { error: "Error managing memories", details: String(error) },
+            null, 2
+          ),
+        }],
       };
-    } finally {
-      await session.close();
+    }
+  }
+);
+
+// Tool 2: Memory Retrieval - Enhanced with examples
+server.tool(
+  "memory_retrieve",
+  "Retrieve specific memories by their IDs with full details including observations, tags, metadata, and graph context (related memories). Use this when you need complete information about specific memories.",
+  {
+    identifiers: z.array(z.string()).describe(`Array of memory IDs to retrieve. Example: ["Bm\\\\jstsj8@yCf)wF>", "Bm\\\\abc123"]. Always use the exact IDs returned from search or create operations.`),
+  },
+  async ({ identifiers }) => {
+    try {
+      const result = await toolHandlers.handleMemoryRetrieve(identifiers);
+      return {
+        content: [{
+          type: "text", 
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { error: "Error retrieving memories", details: String(error) },
+            null, 2
+          ),
+        }],
+      };
+    }
+  }
+);
+
+// Tool 3: Memory Search - Enhanced with examples  
+server.tool(
+  "memory_search",
+  "Search for memories using semantic search, metadata matching, and tag filtering. Supports natural language queries and returns ranked results with scores. Use '*' to get all memories (lightweight mode).",
+  {
+    query: z.string().describe("Natural language search query (e.g., 'React development project', 'machine learning', 'photography business') or '*' for all memories"),
+    limit: z.number().optional().describe("Maximum number of results to return (default: 10, use 0 for no limit)"),
+    includeGraphContext: z.boolean().optional().describe("Include related memories (ancestors/descendants) in results (default: true)"),
+    memoryTypes: z.array(z.string()).optional().describe(`Filter by memory types. Example: ["project", "research"]. Common types: project, research, business, hobby, learning`),
+    threshold: z.number().optional().describe("Minimum relevance score threshold (default: 0.1, range: 0.0-1.0)"),
+  },
+  async ({ query, limit = 10, includeGraphContext = true, memoryTypes, threshold = 0.1 }) => {
+    try {
+      const result = await toolHandlers.handleMemorySearch(
+        query, 
+        limit, 
+        includeGraphContext, 
+        memoryTypes, 
+        threshold
+      );
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { error: "Error searching memories", details: String(error) },
+            null, 2
+          ),
+        }],
+      };
+    }
+  }
+);
+
+// Tool 4: Observation Management - Enhanced with examples
+server.tool(
+  "observation_manage",
+  "Add or delete observations from memories in the knowledge graph. Use this to add new details or remove specific observations from existing memories. Always use the 'observations' parameter (not 'operations').",
+  {
+    operation: z.enum(['add', 'delete']).describe("Operation type: 'add' to add new observations, 'delete' to remove existing ones"),
+    observations: z.array(z.object({
+      memoryId: z.string().describe("Memory ID (e.g., 'Bm\\\\jstsj8@yCf)wF>')"),
+      contents: z.array(z.string()).describe("Array of observation texts to add or delete")
+    })).describe(`Observations to manage. Example:
+    [{
+      "memoryId": "Bm\\\\jstsj8@yCf)wF>", 
+      "contents": ["New observation text", "Another observation"]
+    }]`)
+  },
+  async ({ operation, observations }) => {
+    try {
+      const result = await toolHandlers.handleObservationManage({ operation, observations });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { 
+              error: "Error managing observations", 
+              details: String(error),
+              hint: "Make sure to use the 'observations' parameter (not 'operations') with an array of objects containing 'memoryId' and 'contents' fields."
+            },
+            null, 2
+          ),
+        }],
+      };
+    }
+  }
+);
+
+// Tool 5: Relation Management - Enhanced with examples
+server.tool(
+  "relation_manage", 
+  "Create or delete directional relationships between memories. Relations help build knowledge graphs showing how memories connect. Use meaningful relation types to describe the relationship nature.",
+  {
+    operation: z.enum(['create', 'delete']).describe("Operation type: 'create' to add new relations, 'delete' to remove existing ones"),
+    relations: z.array(z.object({
+      fromId: z.string().describe("Source memory ID (e.g., 'Bm\\\\jstsj8@yCf)wF>')"),
+      toId: z.string().describe("Target memory ID (e.g., 'Bm\\\\abc123')"),
+      relationType: z.string().describe(`Relation type describing the connection. Examples: 'RELATES_TO', 'DEPENDS_ON', 'INFLUENCES', 'COMPLEMENTS', 'BLOCKS', 'FOLLOWS'`)
+    })).describe(`Relations to manage. Example:
+    [{
+      "fromId": "Bm\\\\jstsj8@yCf)wF>",
+      "toId": "Bm\\\\abc123", 
+      "relationType": "RELATES_TO"
+    }]`)
+  },
+  async ({ operation, relations }) => {
+    try {
+      const result = await toolHandlers.handleRelationManage({ operation, relations });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { error: "Error managing relations", details: String(error) },
+            null, 2
+          ),
+        }],
+      };
+    }
+  }
+);
+
+// Tool 6: Database Switch - Enhanced with examples  
+server.tool(
+  "database_switch",
+  "Switch to a different Neo4j database for memory storage. Each database provides complete isolation. Databases are created automatically if they don't exist. Useful for organizing memories by project, user, or context.",
+  {
+    databaseName: z.string().describe(`The name of the database to switch to. Example: 'project-alpha', 'user-memories', 'test-49'. Database names should be lowercase with hyphens or underscores.`)
+  },
+  async ({ databaseName }) => {
+    try {
+      const databaseInfo = await databaseManager.switchDatabase(databaseName, true);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(databaseInfo, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(
+            { error: "Failed to switch database", details: String(error) },
+            null, 2
+          ),
+        }],
+      };
     }
   }
 );
 
 const main = async () => {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  logger.info("Neo4j Knowledge Graph MCP Server running on stdio");
+  try {
+    console.error("[MCP Server] Starting neo4j-memory-server...");
+    
+    // Initialize transport
+    const transport = new StdioServerTransport();
+    console.error("[MCP Server] Transport created");
+    
+    // Connect server to transport
+    await server.connect(transport);
+    console.error("[MCP Server] Server connected to transport");
+    console.error("[MCP Server] Neo4j Memory Server running on stdio with 6 consolidated tools");
 
-  // Proper cleanup on exit
-  const cleanup = async () => {
-    try {
-      // Close Neo4j connection
-      if (knowledgeGraphManager) {
-        await knowledgeGraphManager.close();
+    // Proper cleanup on exit
+    const cleanup = async () => {
+      console.error("[MCP Server] Shutting down...");
+      try {
+        // Close Neo4j connection
+        if (knowledgeGraphManager) {
+          await knowledgeGraphManager.close();
+          console.error("[MCP Server] Neo4j connection closed");
+        }
+        process.exit(0);
+      } catch (error) {
+        console.error("[MCP Server] Error during cleanup:", error);
+        process.exit(1);
       }
-      process.exit(0);
-    } catch (error) {
-      console.error("Error during cleanup:", error);
-      process.exit(1);
-    }
-  };
+    };
 
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
+    
+  } catch (error) {
+    console.error("[MCP Server] Failed to start:", error);
+    process.exit(1);
+  }
 };
 
 main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+// Export for testing
+export { toolHandlers, ConsolidatedToolHandlers };

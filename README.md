@@ -1,214 +1,382 @@
 # MCP Neo4j Knowledge Graph Memory Server
 
-A Model Context Protocol (MCP) server that uses Neo4j as a backend for knowledge graph storage and retrieval.
+*A Model Context Protocol (MCP) server that provides persistent memory capabilities using Neo4j as the backend. Supports semantic search, knowledge graphs, and structured metadata storage.*
 
-## Installation
+## Features
 
-### Installing via NPM
+- **Persistent Memory**: Store and retrieve information across AI conversations
+- **Semantic Search**: Natural language queries using vector embeddings  
+- **Knowledge Graphs**: Build relationships between memories
+- **Structured Metadata**: JSON storage with full-text search
+- **Enhanced Tag Extraction**: Multilingual keyword extraction with semantic deduplication
+- **Neo4j Compatibility**: Works with Community, Enterprise, and AuraDB
+
+## Memory system architecture
+
+```mermaid
+graph TB
+    subgraph "MCP Tool Layer"
+        T1[memory_manage]
+        T2[memory_retrieve]
+        T3[memory_search]
+        T4[observation_manage]
+        T5[relation_manage]
+        T6[database_switch]
+    end
+    
+    subgraph "Core Memory Engine"
+        CM[CoreMemory]
+        ME[MemoryEmbedding]
+        TE[TagExtractor]
+        VE[VectorEngine]
+        MGR[MemoryManager]
+    end
+    
+    subgraph "Search System"
+        US[UnifiedSearch]
+        VS[VectorSearch]
+        MS[MetadataSearch]
+        TS[TagSearch]
+        FS[FullTextSearch]
+        
+        US --> |50% weight| VS
+        US --> |25% weight| MS
+        US --> |15% weight| FS
+        US --> |10% weight| TS
+    end
+    
+    subgraph "Neo4j Database Layer"
+        DB[(Neo4j Database)]
+        IDX[Indexes & Constraints]
+        VEC[Vector Index]
+        FTX[FullText Index]
+        REL[Relationships]
+        
+        DB --> IDX
+        DB --> VEC
+        DB --> FTX
+        DB --> REL
+    end
+    
+    subgraph "Tag Processing Pipeline"
+        SW[Universal Stopwords<br/>stopwords-iso]
+        POS[POS Tagging<br/>compromise.js]
+        TT[Technical Terms<br/>Regex Patterns]
+        SD[Semantic Deduplication<br/>Vector Similarity]
+        
+        SW --> POS
+        POS --> TT
+        TT --> SD
+    end
+    
+    %% Tool connections
+    T1 --> MGR
+    T2 --> CM
+    T3 --> US
+    T4 --> CM
+    T5 --> MGR
+    T6 --> DB
+    
+    %% Core engine connections
+    CM --> ME
+    CM --> TE
+    MGR --> CM
+    ME --> VE
+    TE --> SW
+    
+    %% Search connections
+    VS --> VE
+    MS --> DB
+    TS --> DB
+    FS --> FTX
+    
+    %% Database connections
+    VE --> VEC
+    CM --> DB
+    
+    %% Tag extraction flow
+    TE --> POS
+    SD --> DB
+    
+    %% Styling
+    classDef toolLayer fill:#2196f3,color:#fff,stroke:#1976d2,stroke-width:2px
+    classDef coreEngine fill:#4caf50,color:#fff,stroke:#388e3c,stroke-width:2px
+    classDef searchSystem fill:#ff9800,color:#fff,stroke:#f57c00,stroke-width:2px
+    classDef database fill:#9c27b0,color:#fff,stroke:#7b1fa2,stroke-width:2px
+    classDef tagPipeline fill:#f44336,color:#fff,stroke:#d32f2f,stroke-width:2px
+    
+    class T1,T2,T3,T4,T5,T6 toolLayer
+    class CM,ME,TE,VE,MGR coreEngine
+    class US,VS,MS,TS,FS searchSystem
+    class DB,IDX,VEC,FTX,REL database
+    class SW,POS,TT,SD tagPipeline
+```
+
+## API Overview (v2.0.0)
+
+**Core Operations (6 tools total):**
+- `memory_manage`: Create, update, delete memories *(consolidated from 3 tools)*
+- `memory_retrieve`: Fetch memories by ID with graph context
+- `memory_search`: Enhanced unified search with metadata matching
+- `observation_manage`: Add, delete observations *(consolidated from 2 tools)*
+- `relation_manage`: Create, delete memory relations *(consolidated from 2 tools)*
+- `database_switch`: Database management
+
+*Features enhanced tag extraction system v2.0 with stopwords-iso and compromise.js for improved multilingual support*
+
+## Quick Start
 
 ```bash
 npm install @sylweriusz/mcp-neo4j-memory-server
 ```
 
-### Manual Installation
-
-Add `@sylweriusz/mcp-neo4j-memory-server` in your `claude_desktop_config.json`:
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "graph-memory": {
+    "memory": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@sylweriusz/mcp-neo4j-memory-server"
-      ],
+      "args": ["-y", "@sylweriusz/mcp-neo4j-memory-server"],
       "env": {
         "NEO4J_URI": "bolt://localhost:7687",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "your-password",
-        "NEO4J_DATABASE": "neo4j"    
+        "NEO4J_USERNAME": "neo4j", 
+        "NEO4J_PASSWORD": "your-password"
       }
     }
   }
 }
 ```
+## Neo4j instalation
 
-### Docker
-
-Build:
-
-```bash
-docker build -t mcp-neo4j-graph-memory .
-```
-
-Run:
-
-```bash
-docker run -dit \
-  -e NEO4J_URI=bolt://neo4j:7687 \
-  -e NEO4J_USERNAME=neo4j \
-  -e NEO4J_PASSWORD=password \
-  -e NEO4J_DATABASE=neo4j \  
-  mcp-neo4j-graph-memory
-```
-
-## Configuration
-
-Configure Neo4j connection using environment variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NEO4J_URI` | URI for Neo4j connection | `bolt://localhost:7687` |
-| `NEO4J_USERNAME` | Neo4j username | `neo4j` |
-| `NEO4J_PASSWORD` | Neo4j password | `password` |
-| `NEO4J_DATABASE` | Neo4j default database name | `neo4j` |
-
-You can set these in your environment, .env file, or in the configuration as shown above.
+[How to install NEO4j](README.NEO4J.md)
 
 ## Usage
 
-Use the example instruction below with Claude or other AI assistants that support the MCP protocol:
+### Basic Operation
 
-```
-Follow these steps for each interaction:
+Once configured, the memory server integrates automatically with your AI assistant. No additional setup required—just start using it naturally in conversation.
 
-1. User Identification:
-   - You should assume that you are interacting with default_user
-   - If you have not identified default_user, proactively try to do so.
+```bash
+# Example: AI automatically remembers and recalls
+You: "Remember that I prefer TypeScript over JavaScript"
+AI: "I'll remember your TypeScript preference for future discussions."
 
-2. Memory Retrieval:
-   - Always begin your chat by saying only "Remembering..." and search relevant information from your knowledge graph
-   - Create a search query from user words, and search things from "memory". If nothing matches, try to break down words in the query at first ("A B" to "A" and "B" for example).
-   - Always refer to your knowledge graph as your "memory"
-
-3. Memory:
-   - While conversing with the user, be attentive to any new information that falls into these categories:
-     a) Basic Identity (age, gender, location, job title, education level, etc.)
-     b) Behaviors (interests, habits, etc.)
-     c) Preferences (communication style, preferred language, etc.)
-     d) Goals (goals, targets, aspirations, etc.)
-     e) Relationships (personal and professional relationships up to 3 degrees of separation)
-
-4. Memory Update:
-   - If any new information was gathered during the interaction, update your memory as follows:
-     a) Create entities for recurring organizations, people, and significant events
-     b) Connect them to the current entities using relations
-     c) Store facts about them as observations
+You: "What do we know about the Q4 budget?"  
+AI: "Let me search... I found three related memories about Q4 budget planning..."
 ```
 
-### Project-Specific Knowledge Graphs with Database Switching
+### Consolidated Tool Usage
 
-**IMPORTANT**: To use project-specific knowledge graphs, you should use the built-in database management tools within your system prompt. Do NOT rely solely on environment configuration.
+**Memory Management:**
+```javascript
+// Create memories
+{
+  "operation": "create",
+  "memories": [
+    {
+      "name": "Project Alpha",
+      "memoryType": "project",
+      "metadata": { "status": "active" },
+      "observations": ["Project initiated"]
+    }
+  ]
+}
 
-Use this improved system prompt template for project-related work:
+// Update memory metadata  
+{
+  "operation": "update",
+  "updates": [
+    {
+      "id": "Bm>xyz123",
+      "metadata": { "status": "completed" }
+    }
+  ]
+}
 
+// Delete memories
+{
+  "operation": "delete", 
+  "identifiers": ["Bm>xyz123", "Bm>abc456"]
+}
 ```
-NEO4J_DATABASE="your-project-name"  # Define project database name variable here
 
-1. Knowledge graph database management:
-   - At the beginning of each conversation, check the current database: get_current_database
-   - Switch to the project-specific database: switch_database ${NEO4J_DATABASE} true
-   - This database switching should be done in EACH SESSION using these commands
-   - Do not rely on configuration settings alone for database selection
+**Observation Management:**
+```javascript
+// Add observations
+{
+  "operation": "add",
+  "observations": [
+    {
+      "memoryId": "Bm>xyz123",
+      "contents": ["Progress update", "Milestone achieved"]
+    }
+  ]
+}
 
-2. Using the knowledge graph:
-   - Store all important project information as entities and relations
-   - Use this information throughout your work
-   - Create entities for: files, classes, functions, errors, project requirements
-   - Relations describe the connections between entities
-
-3. Knowledge source priority:
-   - The knowledge graph is the PRIMARY and AUTHORITATIVE source of project information
-   - Always check the knowledge graph before attempting to search files or directories
-   - Update the knowledge graph with any new information discovered during the session
+// Delete observations
+{
+  "operation": "delete",
+  "observations": [
+    {
+      "memoryId": "Bm>xyz123", 
+      "contents": ["Outdated information"]
+    }
+  ]
+}
 ```
 
-## Database Management API
+**Relation Management:**
+```javascript
+// Create relations
+{
+  "operation": "create",
+  "relations": [
+    {
+      "fromId": "Bm>abc789",
+      "toId": "Bm>xyz123",
+      "relationType": "includes"
+    }
+  ]
+}
 
-The server provides several database management commands that should be used in your system prompts:
+// Delete relations
+{
+  "operation": "delete",
+  "relations": [
+    {
+      "fromId": "Bm>abc789",
+      "toId": "Bm>xyz123", 
+      "relationType": "includes"
+    }
+  ]
+}
+```
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `get_current_database` | Returns the current active database | `get_current_database` |
-| `switch_database` | Switches to a different database, optionally creating it if it doesn't exist | `switch_database my-project true` |
-| `list_databases` | Lists all available databases | `list_databases` |
+### Memory Structure
 
-Always use these commands in your system prompt to ensure you're working with the correct project database.
+```json
+{
+  "id": "Bm>xyz123",
+  "name": "Project Alpha",
+  "memoryType": "project", 
+  "metadata": {
+    "status": "active",
+    "deadline": "2025-06-01"
+  },
+  "observations": [
+    {
+      "content": "Requirements gathering completed",
+      "createdAt": "2025-05-19T16:45:42.329Z"
+    },
+    {
+      "content": "Team assigned and kickoff scheduled",
+      "createdAt": "2025-05-19T16:45:43.102Z"
+    }
+  ],
+  "related": {
+    "ancestors": [
+      {"id": "Bm>abc789", "name": "Initiative Beta", "relation": "DEPENDS_ON", "distance": 1}
+    ],
+    "descendants": [
+      {"id": "Bm>def456", "name": "Task Gamma", "relation": "INFLUENCES", "distance": 1}
+    ]
+  }
+}
+```
 
-## Implementation Details
+### Enhanced Unified Search Strategy
 
-This implementation uses Neo4j as the backend storage system, focusing on three key aspects:
+The search engine uses a sophisticated multi-channel approach:
 
-### Graph Database Structure
+- **Vector Similarity (50% weight)**: Semantic understanding via embeddings
+- **Metadata Exact Matching (25% weight)**: High-precision structured data matching
+- **Metadata FullText (15% weight)**: Flexible text search across JSON metadata
+- **Tag Matching (10% weight)**: Keyword-based discovery
 
-The knowledge graph is stored in Neo4j with the following schema:
+All queries include 2-level graph context with accurate relationship types and chronological observation ordering.
 
 ```mermaid
 graph TD
-    E[Entity] -->|HAS_OBSERVATION| O[Observation]
-    E1[Entity] -->|RELATES_TO| E2[Entity]
-    P[Project] -->|CONTAINS| F[File]
-    F -->|HAS_FUNCTION| Fn[Function]
-    F -->|HAS_CLASS| C[Class]
-    P -->|HAS_ERROR| Er[Error]
-    P -->|HAS_REQUIREMENT| R[Requirement]
+    subgraph "Neo4j Database"
+        M[Memory Node]
+        O1[Observation 1]
+        O2[Observation 2]
+        O3[Observation N]
+        T1[Tag react.js]
+        T2[Tag postgresql]
+        T3[Tag project]
+        RM1[Related Memory 1]
+        RM2[Related Memory 2]
+        
+        %% Memory Properties
+        M --> |Properties| MP[id: Bm>xyz123<br/>name: React Project<br/>memoryType: project<br/>metadata: JSON<br/>createdAt: timestamp<br/>modifiedAt: timestamp<br/>lastAccessed: timestamp<br/>nameEmbedding: vector<br/>tags: string array]
+        
+        %% Relationships
+        M -->|HAS_OBSERVATION| O1
+        M -->|HAS_OBSERVATION| O2
+        M -->|HAS_OBSERVATION| O3
+        M -->|HAS_TAG| T1
+        M -->|HAS_TAG| T2
+        M -->|HAS_TAG| T3
+        
+        %% Inter-memory relationships
+        RM1 -->|DEPENDS_ON| M
+        M -->|INFLUENCES| RM2
+        
+        %% Observation Properties
+        O1 --> OP1[content: Started project setup<br/>createdAt: timestamp<br/>source: optional<br/>confidence: 0.0-1.0<br/>embedding: optional]
+        
+        %% Tag Properties
+        T1 --> TP1[name: react.js<br/>unique constraint]
+    end
+    
+    %% Styling
+    classDef memoryNode fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    classDef observationNode fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef tagNode fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef relatedNode fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef propertyBox fill:#f5f5f5,stroke:#757575,stroke-width:1px
+    
+    class M memoryNode
+    class O1,O2,O3 observationNode
+    class T1,T2,T3 tagNode
+    class RM1,RM2 relatedNode
+    class MP,OP1,TP1 propertyBox
+```    
 
-    classDef entity fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef observation fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef project fill:#fdf,stroke:#333,stroke-width:3px;
-    classDef file fill:#dfd,stroke:#333,stroke-width:1px;
-    classDef code fill:#ddf,stroke:#333,stroke-width:1px;
-    classDef error fill:#fdd,stroke:#333,stroke-width:1px;
-    classDef requirement fill:#ffd,stroke:#333,stroke-width:1px;
+### For Memory-Driven Projects
 
-    class E,E1,E2 entity;
-    class O observation;
-    class P project;
-    class F file;
-    class Fn,C code;
-    class Er error;
-    class R requirement;
+If you're building a memory-driven system, consider this system prompt preamble:
+
+```text
+You are an AI assistant with persistent memory capabilities through an MCP memory server.
+
+MEMORY PROTOCOL:
+- Begin sessions by searching existing memories with memory_search
+- Store user information in structured categories: identity, preferences, goals, relationships, context
+- Use metadata for searchable fields (dates, statuses, types)
+- Use observations for detailed narrative content
+- Create relations between connected memories
+- Update information when it changes rather than duplicating
+
+MEMORY TYPES:
+- user: Personal information and preferences
+- project: Work items and initiatives  
+- conversation: Important discussion points
+- relationship: People and connections
+- knowledge: Facts and learned information
+
+TOOL USAGE:
+- Use memory_manage for all create/update/delete operations with operation discriminators
+- Use observation_manage and relation_manage for content modifications
+- Always search before creating to avoid duplicates
+
+Always search before creating to avoid duplicates. Organize information logically using the graph structure.
 ```
 
-Properties:
-- Entity nodes: `name`, `entityType`
-- Observation nodes: `content`
-- RELATES_TO relationships: `relationType`
-
-This schema design allows for efficient storage and retrieval of knowledge graph components while leveraging Neo4j's native graph capabilities.
-
-### Fuzzy Search Implementation
-
-The implementation combines Neo4j Cypher queries with Fuse.js for flexible entity searching:
-
-- Neo4j Cypher queries retrieve the base data from the database
-- Fuse.js provides fuzzy matching capabilities on top of the retrieved data
-- This hybrid approach allows for both structured graph queries and flexible text matching
-- Search results include both exact and partial matches, ranked by relevance
-
-### Advantages 
-
-1. **Native Graph Structure**: Neo4j's graph database provides a natural fit for knowledge graph data, with nodes, relationships, and properties.
-2. **Optimized Traversal**: Neo4j excels at navigating complex relationships between entities.
-3. **Scalability**: Better performance with large knowledge graphs due to Neo4j's optimized graph storage and retrieval.
-4. **Query Expressiveness**: Cypher query language makes complex graph patterns easier to express and query.
-5. **Visualization**: Native support for graph visualization in Neo4j Browser.
-
-## Development
-
-### Setup
-
-```bash
-pnpm install
-```
-
-### Testing
-
-```bash
-pnpm test
-```
+This preamble establishes consistent memory behavior for AI systems designed around persistent context.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.

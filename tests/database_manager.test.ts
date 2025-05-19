@@ -17,11 +17,20 @@ vi.mock('../src/manager', () => {
     close: vi.fn().mockResolvedValue({}),
   };
   
+  const mockSession = {
+    run: vi.fn().mockResolvedValue({
+      records: []
+    }),
+    close: vi.fn().mockResolvedValue({}),
+  };
+  
   return {
     Neo4jKnowledgeGraphManager: vi.fn().mockImplementation(() => {
       return {
         createEntities: vi.fn().mockResolvedValue([]),
         getSystemSession: vi.fn().mockReturnValue(mockSystemSession),
+        getSession: vi.fn().mockReturnValue(mockSession),
+        initialize: vi.fn().mockResolvedValue({}), // Add the missing initialize method
         database: 'neo4j',
         initialized: true,
         neo4jConfig: {

@@ -4,6 +4,25 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { DatabaseManager } from "./database_manager";
 import { Neo4jKnowledgeGraphManager } from "./manager";
+import { isValidCompactId } from "./id_generator";
+
+/**
+ * Check ID format type
+ * @param id Memory ID
+ * @returns Format type: 'uuid', 'compact', or 'unknown'
+ */
+export function detectIdFormat(id: string): 'uuid' | 'compact' | 'unknown' {
+  if (!id) return 'unknown';
+  
+  // Test for UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(id)) return 'uuid';
+  
+  // Test for compact ID format
+  if (isValidCompactId(id)) return 'compact';
+  
+  return 'unknown';
+}
 
 /**
  * Add database management tools to an MCP server
@@ -17,68 +36,6 @@ export function addDatabaseTools(
   // Create Database Manager
   const databaseManager = new DatabaseManager(knowledgeGraphManager);
 
-  // Switch database tool
-  server.tool(
-    "switch_database",
-    "Switch to a different Neo4j database or create a new one if it doesn't exist",
-    {
-      databaseName: z
-        .string()
-        .describe("The name of the database to switch to"),
-      createIfNotExists: z
-        .boolean()
-        .optional()
-        .describe("Whether to create the database if it doesn't exist"),
-    },
-    async ({ databaseName, createIfNotExists = false }) => ({
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            await databaseManager.switchDatabase(databaseName, createIfNotExists),
-            null,
-            2
-          ),
-        },
-      ],
-    })
-  );
-
-  // Get current database tool
-  server.tool(
-    "get_current_database",
-    "Get information about the current Neo4j database",
-    {},
-    async () => ({
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            databaseManager.getCurrentDatabase(),
-            null,
-            2
-          ),
-        },
-      ],
-    })
-  );
-
-  // List databases tool
-  server.tool(
-    "list_databases",
-    "List all available Neo4j databases",
-    {},
-    async () => ({
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            await databaseManager.listDatabases(),
-            null,
-            2
-          ),
-        },
-      ],
-    })
-  );
+  // Database switching is now handled directly in index.ts as database_switch
+  // This file is kept for utility functions only
 }

@@ -1,11 +1,11 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
 
-name: Neo4j Knowledge Graph Memory Server
-description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for knowledge graph storage and retrieval. This server allows LLMs to store and query information in a persistent graph database, enabling long-term memory capabilities.
+name: Neo4j Knowledge Graph Memory
+description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features enhanced semantic search, knowledge graphs, and sophisticated tag extraction for AI memory systems.
 license: MIT
-version: 1.1.5
+version: 2.0.0
 author: sylweriusz
-repository: https://github.com/sylweriusz/mcp-neo4j-memory-server
+repository: https://github.com/sylweriusz/mcp-neo4j-memory-v2
 
 # Documentation sections
 documentation:
@@ -17,11 +17,11 @@ documentation:
   installation: |
     ### Installing via NPM
     ```bash
-    npm install @sylweriusz/mcp-neo4j-memory-server
+    npm install @sylweriusz/mcp-neo4j-memory-v2
     ```
 
     ### Manual Installation
-    Add `@sylweriusz/mcp-neo4j-memory-server` in your `claude_desktop_config.json`:
+    Add `@sylweriusz/mcp-neo4j-memory-v2` in your `claude_desktop_config.json`:
     ```json
     {
       "mcpServers": {
@@ -29,7 +29,7 @@ documentation:
           "command": "npx",
           "args": [
             "-y",
-            "@sylweriusz/mcp-neo4j-memory-server"
+            "@sylweriusz/mcp-neo4j-memory-v2"
           ],
           "env": {
             "NEO4J_URI": "bolt://localhost:7687",
@@ -58,49 +58,45 @@ documentation:
       mcp-neo4j-graph-memory
     ```
   
+  
   usage: |
-    Use the following tools to interact with the knowledge graph:
+    Use the following consolidated tools to interact with the memory system:
     
-    - `create_entities`: Create multiple new entities in the knowledge graph
-    - `create_relations`: Create multiple new relations between entities
-    - `add_observations`: Add new observations to existing entities
-    - `delete_entities`: Delete multiple entities and their associated relations
-    - `delete_observations`: Delete specific observations from entities
-    - `delete_relations`: Delete multiple relations from the knowledge graph
-    - `search_nodes`: Search for nodes in the knowledge graph based on a query
-    - `open_nodes`: Open specific nodes in the knowledge graph by their names
-    - `list_entities`: Get a lightweight list of all entities with their names and types
-    - `switch_database`: Switch to a different Neo4j database or create a new one
-    - `get_current_database`: Get information about the current Neo4j database
-    - `list_databases`: List all available Neo4j databases
-    - `get_entity_list`: Get a simple list of all entity names and types
-
+    - `memory_manage`: Create, update, delete memories (consolidated operations)
+    - `memory_retrieve`: Fetch memories by ID with 2-level graph context
+    - `memory_search`: Enhanced unified search with vector similarity, metadata matching, and tag filtering
+    - `observation_manage`: Add or delete observations from memories
+    - `relation_manage`: Create or delete relationships between memories
+    - `database_switch`: Switch to different Neo4j databases
+    
+    Enhanced features:
+    - **Vector Search**: 50% weighted semantic similarity using embeddings
+    - **Metadata Search**: 25% weighted exact matching on structured data
+    - **FullText Search**: 15% weighted content search across metadata
+    - **Tag Matching**: 10% weighted keyword-based discovery
+    - **Graph Context**: Automatic 2-level relationship traversal
+    - **Chronological Ordering**: Observations sorted by creation timestamp
+    
     Example system prompt:
     ```
-    Follow these steps for each interaction:
+    You are an AI assistant with persistent memory through an MCP memory server.
 
-    1. User Identification:
-       - You should assume that you are interacting with default_user
-       - If you have not identified default_user, proactively try to do so.
+    MEMORY PROTOCOL:
+    - Begin sessions by searching existing memories with memory_search
+    - Store information in structured categories: identity, preferences, goals, relationships, projects
+    - Use metadata for searchable fields (dates, statuses, types)
+    - Use observations for detailed narrative content
+    - Create relations between connected memories
+    - Update information when it changes rather than duplicating
 
-    2. Memory Retrieval:
-       - Always begin your chat by saying only "Remembering..." and search relevant information from your knowledge graph
-       - Create a search query from user words, and search things from "memory". If nothing matches, try to break down words in the query at first ("A B" to "A" and "B" for example).
-       - Always refer to your knowledge graph as your "memory"
+    MEMORY TYPES:
+    - user: Personal information and preferences
+    - project: Work items and initiatives  
+    - conversation: Important discussion points
+    - relationship: People and connections
+    - knowledge: Facts and learned information
 
-    3. Memory:
-       - While conversing with the user, be attentive to any new information that falls into these categories:
-         a) Basic Identity (age, gender, location, job title, education level, etc.)
-         b) Behaviors (interests, habits, etc.)
-         c) Preferences (communication style, preferred language, etc.)
-         d) Goals (goals, targets, aspirations, etc.)
-         e) Relationships (personal and professional relationships up to 3 degrees of separation)
-
-    4. Memory Update:
-       - If any new information was gathered during the interaction, update your memory as follows:
-         a) Create entities for recurring organizations, people, and significant events
-         b) Connect them to the current entities using relations
-         c) Store facts about them as observations
+    Always search before creating to avoid duplicates. Organize information logically using graph structure.
     ```
 
 # Build configuration
@@ -112,41 +108,46 @@ build:
 preview:
   defaultCommand: node dist/index.mjs
   examples:
-    - title: Creating Entities
-      description: Create new entities in the knowledge graph
+    - title: Creating Memories
+      description: Create new memories in the knowledge graph
       input: |
-        {"entities":[{"name":"John","entityType":"Person","observations":["Software Engineer","Lives in New York","Works at TechCorp"]}]}
+        {"operation":"create","memories":[{"name":"John","memoryType":"person","observations":["Software Engineer","Lives in New York","Works at TechCorp"],"metadata":{"role":"developer","location":"NYC"}}]}
       output: |
-        [{"name":"John","entityType":"Person","observations":["Software Engineer","Lives in New York","Works at TechCorp"]}]
+        {"memories":[{"id":"Bm>xyz123","name":"John","memoryType":"person","observations":[{"content":"Software Engineer","createdAt":"2025-05-19T16:45:42.329Z"}],"tags":["software","engineer","techcorp"],"metadata":{"role":"developer","location":"NYC"}}]}
     
-    - title: Searching Nodes
-      description: Search for entities in the knowledge graph
+    - title: Memory Search
+      description: Search for memories using enhanced unified search
       input: |
-        {"query":"Tech"}
+        {"query":"software engineer New York"}
       output: |
-        [{"name":"John","entityType":"Person","observations":["Software Engineer","Lives in New York","Works at TechCorp"],"match":{"score":0.78,"field":"observations","matchedText":"Works at TechCorp"}}]
+        {"memories":[{"id":"Bm>xyz123","name":"John","memoryType":"person","observations":[{"content":"Software Engineer","createdAt":"2025-05-19T16:45:42.329Z"}],"related":{"ancestors":[],"descendants":[]},"score":0.85}],"_meta":{"total":1,"queryTime":95}}
 
 # Tools configuration for display
 tools:
-  - name: create_entities
-    description: Create multiple new entities in the knowledge graph
+  - name: memory_manage
+    description: Create, update, or delete memories with consolidated operations
     example: |
-      {"entities":[{"name":"Jane","entityType":"Person","observations":["Data Scientist","Loves hiking"]}]}
+      {"operation":"create","memories":[{"name":"Jane","memoryType":"person","observations":["Data Scientist","Loves hiking"],"metadata":{"department":"AI","hobby":"outdoor"}}]}
     
-  - name: create_relations
-    description: Create multiple new relations between entities in the knowledge graph
+  - name: memory_search
+    description: Enhanced unified search with vector similarity, metadata, and tag matching
     example: |
-      {"relations":[{"from":"Jane","to":"TechCorp","relationType":"WORKS_AT"}]}
-    
-  - name: search_nodes
-    description: Search for nodes in the knowledge graph based on a query
-    example: |
-      {"query":"hiking"}
+      {"query":"hiking data science","limit":5}
   
-  - name: switch_database
-    description: Switch to a different Neo4j database or create a new one if it doesn't exist
+  - name: observation_manage
+    description: Add or delete observations from existing memories
     example: |
-      {"databaseName":"project-xyz","createIfNotExists":true}
+      {"operation":"add","observations":[{"memoryId":"Bm>xyz123","contents":["Completed mountain expedition"]}]}
+  
+  - name: relation_manage
+    description: Create or delete relationships between memories
+    example: |
+      {"operation":"create","relations":[{"fromId":"Bm>abc789","toId":"Bm>xyz123","relationType":"COLLABORATES_WITH"}]}
+  
+  - name: database_switch
+    description: Switch to a different Neo4j database for complete isolation
+    example: |
+      {"databaseName":"project-alpha"}
 
 # Start command configuration (existing content)
 startCommand:

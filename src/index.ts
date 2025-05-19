@@ -15,27 +15,34 @@ dotenv.config();
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.0.0"  // Initial 2.0 release
+  version: "2.0.1"  // Version with Smithery lazy loading fix
 });
 
 const logger = new NullLogger();
-const knowledgeGraphManager = new Neo4jKnowledgeGraphManager(
-  () => {
-    return {
-      uri: process.env.NEO4J_URI || "bolt://localhost:7687",
-      username: process.env.NEO4J_USERNAME || "neo4j",
-      password: process.env.NEO4J_PASSWORD || "password",
-      database: process.env.NEO4J_DATABASE || "neo4j",
-    };
-  },
-  logger
-);
 
-// Create Database Manager for database operations
-const databaseManager = new DatabaseManager(knowledgeGraphManager);
+// Lazy initialization - only connect when tools are actually called
+let knowledgeGraphManager: Neo4jKnowledgeGraphManager | null = null;
+let databaseManager: DatabaseManager | null = null;
+let toolHandlers: ConsolidatedToolHandlers | null = null;
 
-// Create consolidated tool handlers
-const toolHandlers = new ConsolidatedToolHandlers(knowledgeGraphManager);
+const getManagers = () => {
+  if (!knowledgeGraphManager) {
+    knowledgeGraphManager = new Neo4jKnowledgeGraphManager(
+      () => {
+        return {
+          uri: process.env.NEO4J_URI || "bolt://localhost:7687",
+          username: process.env.NEO4J_USERNAME || "neo4j", 
+          password: process.env.NEO4J_PASSWORD || "password",
+          database: process.env.NEO4J_DATABASE || "neo4j",
+        };
+      },
+      logger
+    );
+    databaseManager = new DatabaseManager(knowledgeGraphManager);
+    toolHandlers = new ConsolidatedToolHandlers(knowledgeGraphManager);
+  }
+  return { knowledgeGraphManager, databaseManager, toolHandlers };
+};
 
 // CONSOLIDATED TOOLS (6 total, down from 10)
 
@@ -68,6 +75,7 @@ server.tool(
   },
   async ({ operation, memories, updates, identifiers }) => {
     try {
+      const { toolHandlers } = getManagers();
       let result;
       switch (operation) {
         case 'create':
@@ -115,6 +123,7 @@ server.tool(
   },
   async ({ identifiers }) => {
     try {
+      const { toolHandlers } = getManagers();
       const result = await toolHandlers.handleMemoryRetrieve(identifiers);
       return {
         content: [{
@@ -149,6 +158,7 @@ server.tool(
   },
   async ({ query, limit = 10, includeGraphContext = true, memoryTypes, threshold = 0.1 }) => {
     try {
+      const { toolHandlers } = getManagers();
       const result = await toolHandlers.handleMemorySearch(
         query, 
         limit, 
@@ -193,6 +203,7 @@ server.tool(
   },
   async ({ operation, observations }) => {
     try {
+      const { toolHandlers } = getManagers();
       const result = await toolHandlers.handleObservationManage({ operation, observations });
       return {
         content: [{
@@ -237,6 +248,7 @@ server.tool(
   },
   async ({ operation, relations }) => {
     try {
+      const { toolHandlers } = getManagers();
       const result = await toolHandlers.handleRelationManage({ operation, relations });
       return {
         content: [{
@@ -267,6 +279,7 @@ server.tool(
   },
   async ({ databaseName }) => {
     try {
+      const { databaseManager } = getManagers();
       const databaseInfo = await databaseManager.switchDatabase(databaseName, true);
       return {
         content: [{
@@ -305,7 +318,7 @@ const main = async () => {
     const cleanup = async () => {
       console.error("[MCP Server] Shutting down...");
       try {
-        // Close Neo4j connection
+        // Close Neo4j connection if it exists
         if (knowledgeGraphManager) {
           await knowledgeGraphManager.close();
           console.error("[MCP Server] Neo4j connection closed");
@@ -331,5 +344,5 @@ main().catch((error) => {
   process.exit(1);
 });
 
-// Export for testing
-export { toolHandlers, ConsolidatedToolHandlers };
+// Export managers factory for testing
+export { getManagers, ConsolidatedToolHandlers };

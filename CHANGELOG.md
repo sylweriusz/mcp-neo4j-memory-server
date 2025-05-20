@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2025-05-20
+
+### Fixed
+- Fixed destructive MCP tool documentation for memory_search limit parameter
+- Changed limit description from "use 0 for no limit" to "recommended: 50-100 for exploration"
+- Updated main description to clarify wildcard search behavior with limits
+- Prevents AI from starting exploration with limit=0 which returns empty results
+
+### Technical Details
+- Modified memory_search tool description in src/index.ts
+- Replaced toxic "use 0 for no limit" phrasing that misled AI clients
+- Clarified that '*' searches all memories but respects the specified limit
+- Improved user experience by encouraging reasonable default limits
+
 ## [2.0.2] - 2025-05-20
 
 ### Fixed

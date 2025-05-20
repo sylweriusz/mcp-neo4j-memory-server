@@ -113,7 +113,7 @@ graph TB
     class SW,POS,TT,SD tagPipeline
 ```
 
-## API Overview (v2.0.2)
+## API Overview (v2.0.3)
 
 **Core Operations (6 tools total):**
 - `memory_manage`: Create, update, delete memories *(consolidated from 3 tools)*

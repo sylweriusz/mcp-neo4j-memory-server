@@ -15,7 +15,7 @@ dotenv.config();
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.0.2"  // Version with deep lazy loading fix
+  version: "2.0.3"  // Version with MCP tool description fix
 });
 
 const logger = new NullLogger();
@@ -148,10 +148,10 @@ server.tool(
 // Tool 3: Memory Search - Enhanced with examples  
 server.tool(
   "memory_search",
-  "Search for memories using semantic search, metadata matching, and tag filtering. Supports natural language queries and returns ranked results with scores. Use '*' to get all memories (lightweight mode).",
+  "Search for memories using semantic search, metadata matching, and tag filtering. Supports natural language queries and returns ranked results with scores. Use '*' to search all memories with the specified limit.",
   {
     query: z.string().describe("Natural language search query (e.g., 'React development project', 'machine learning', 'photography business') or '*' for all memories"),
-    limit: z.number().optional().describe("Maximum number of results to return (default: 10, use 0 for no limit)"),
+    limit: z.number().optional().describe("Maximum number of results to return (default: 10, recommended: 50-100 for exploration)"),
     includeGraphContext: z.boolean().optional().describe("Include related memories (ancestors/descendants) in results (default: true)"),
     memoryTypes: z.array(z.string()).optional().describe(`Filter by memory types. Example: ["project", "research"]. Common types: project, research, business, hobby, learning`),
     threshold: z.number().optional().describe("Minimum relevance score threshold (default: 0.1, range: 0.0-1.0)"),

@@ -113,7 +113,7 @@ graph TB
     class SW,POS,TT,SD tagPipeline
 ```
 
-## API Overview (v2.0.3)
+## API Overview (v2.0.4)
 
 **Core Operations (6 tools total):**
 - `memory_manage`: Create, update, delete memories *(consolidated from 3 tools)*
@@ -123,7 +123,7 @@ graph TB
 - `relation_manage`: Create, delete memory relations *(consolidated from 2 tools)*
 - `database_switch`: Database management
 
-*Features enhanced tag extraction system v2.0 with stopwords-iso and compromise.js for improved multilingual support*
+*Features enhanced tag extraction system v2.0 with stopwords-iso and compromise.js for improved multilingual support and contextual memory guidance*
 
 ## Quick Start
 

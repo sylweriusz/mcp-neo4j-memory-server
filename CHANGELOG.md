@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2025-05-20
+
+### Enhanced
+- Updated tool descriptions to improve contextual memory usage
+- Added clear guidance for database context in all memory operations
+- Modified all MCP tools to clearly indicate operations should use current database
+- Improved database_switch description to emphasize context importance
+
+### Technical Details
+- Enhanced memory_search description to suggest usage for implicit memory references
+- Updated memory_manage description to encourage background memory storage
+- Modified observation_manage to clarify current database usage requirements
+- Improved relation_manage documentation for context consistency
+- Updated database_switch description to emphasize its role in operation context
+
 ## [2.0.3] - 2025-05-20
 
 ### Fixed

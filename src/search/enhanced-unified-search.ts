@@ -135,6 +135,9 @@ export class EnhancedUnifiedSearch {
       // Core content with observations as objects (matching retrieve format)
       OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
       OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
+      
+      // Order observations before collecting
+      WITH m, ancestors, descendants, t, o ORDER BY o.createdAt ASC
 
       RETURN m.id as id,
              m.name as name,
@@ -273,6 +276,9 @@ export class EnhancedUnifiedSearch {
       // Core content with observations as objects (matching retrieve format)
       OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
       OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
+      
+      // Order observations before collecting
+      WITH m, ancestors, descendants, t, o ORDER BY o.createdAt ASC
 
       RETURN m.id as id,
              m.name as name,
@@ -366,22 +372,7 @@ export class EnhancedUnifiedSearch {
   }
 
   private async calculateVectorScore(queryVector: Vector, embedding: number[]): Promise<number> {
-    if (!this.vectorSupport) {
-      this.vectorSupport = await checkVectorSupport(this.session);
-    }
-
-    // Use appropriate similarity calculation based on available support
-    switch (this.vectorSupport) {
-      case 'gds':
-        // GDS is available in the session context during query execution
-        // For now, calculate in memory as fallback
-        return this.calculateCosineSimilarity(queryVector, embedding);
-      case 'enterprise':
-        // Enterprise vector functions not accessible outside query context
-        return this.calculateCosineSimilarity(queryVector, embedding);
-      default:
-        return this.calculateCosineSimilarity(queryVector, embedding);
-    }
+    return this.calculateCosineSimilarity(queryVector, embedding);
   }
 
   private calculateCosineSimilarity(a: number[], b: number[]): number {

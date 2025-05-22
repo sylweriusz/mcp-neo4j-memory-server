@@ -473,10 +473,11 @@ describe('Manager Error Scenarios', () => {
     it('should fall back to searchNodes on enhanced search failure', async () => {
       const { EnhancedUnifiedSearch } = await import('../src/search/enhanced-unified-search');
       
-      // Mock enhanced search failure
-      vi.mocked(EnhancedUnifiedSearch).mockImplementation(() => {
-        throw new Error('Enhanced search failed');
-      });
+      // Mock enhanced search with failing search method
+      const mockEnhancedSearch = {
+        search: vi.fn().mockRejectedValue(new Error('Enhanced search failed'))
+      };
+      vi.mocked(EnhancedUnifiedSearch).mockImplementation(() => mockEnhancedSearch as any);
 
       // Mock searchNodes to return empty results
       vi.spyOn(manager, 'searchNodes').mockResolvedValue({ memories: [], relations: [] });

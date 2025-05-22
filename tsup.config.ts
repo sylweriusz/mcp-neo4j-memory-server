@@ -11,7 +11,7 @@ export default defineConfig({
   sourcemap: false,
   dts: false,
   minify: true,
-  // Bundle stopwords-iso into the final build
+  // Bundle extracted stopwords into the final build
   external: ["neo4j-driver", "@modelcontextprotocol/sdk", "@xenova/transformers"],
   bundle: true,
   // Ensure dependencies are bundled correctly

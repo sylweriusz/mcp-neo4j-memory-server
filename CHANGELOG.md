@@ -5,10 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2025-05-22
+
+### Fixed
+- Enhanced tag extraction system with proper POS tagging sequence
+- Replaced hardcoded stopwords with professional multilingual extraction (20,000+ words)
+- Enabled observations processing in tag extraction (60% name, 40% observations)
+- Added comprehensive technical term detection patterns
+- Fixed multilingual stopwords import compatibility
+- Increased tag limit to 6 per memory for better semantic coverage
+
 ## [2.0.4] - 2025-05-20
 
 ### Enhanced
-- Updated tool descriptions to improve contextual memory usage
+- Updated tool descriptions to improve contextual  memory usage
 - Added clear guidance for database context in all memory operations
 - Modified all MCP tools to clearly indicate operations should use current database
 - Improved database_switch description to emphasize context importance

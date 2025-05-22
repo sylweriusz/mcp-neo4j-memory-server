@@ -18,7 +18,8 @@ import { generateCompactId } from './id_generator';
 import { 
   calculateEmbedding, 
   extractTags,
-  processMemoryVectors
+  processMemoryVectors,
+  semanticDeduplicationWithCache
 } from "./vector";
 import { ensureVectorIndexes } from "./vector/support";
 import { EnhancedUnifiedSearch } from "./search/enhanced-unified-search";
@@ -144,6 +145,10 @@ export class Neo4jKnowledgeGraphManager
         MATCH (m:Memory)
         OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
         OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
+        
+        // Order observations before collecting
+        WITH m, t, o ORDER BY o.createdAt ASC
+        
         RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType, 
                m.metadata AS metadata,
                m.createdAt AS createdAt, m.modifiedAt AS modifiedAt, m.lastAccessed AS lastAccessed,
@@ -205,11 +210,33 @@ export class Neo4jKnowledgeGraphManager
         // Calculate name embedding
         const nameEmbedding = await calculateEmbedding(memory.name);
         
-        // Extract tags from name - pass a session to avoid Map{} issues
+        // Extract tags from name AND observations - pass a session to avoid Map{} issues
         const session = this.getSession();
         let tags: string[] = [];
         try {
-          tags = await extractTags(memory.name, session);
+          // Extract from name (60% weight)
+          const nameTags = await extractTags(memory.name, session);
+          
+          // Extract from observations (40% weight)
+          const observationText = memory.observations.join(' ');
+          const observationTags = observationText.trim() 
+            ? await extractTags(observationText, session)
+            : [];
+          
+          // Combine weighted tags (targeting 6 total)
+          const weightedCandidates = [
+            ...nameTags.map(tag => ({ tag, weight: 1.5 })),
+            ...observationTags.map(tag => ({ tag, weight: 1.0 }))
+          ];
+          
+          // Sort by weight and take candidates for deduplication
+          const candidateNames = weightedCandidates
+            .sort((a, b) => b.weight - a.weight)
+            .map(c => c.tag);
+          
+          // Import semantic deduplication
+          const finalTags = await semanticDeduplicationWithCache(session, candidateNames, 0.75);
+          tags = finalTags.slice(0, 6);
         } catch (error) {
           // Error during tag extraction - continuing without tags
           tags = [];
@@ -335,13 +362,49 @@ export class Neo4jKnowledgeGraphManager
               }
             }
 
-            // Update modifiedAt timestamp
+            // Get tags from precomputed data
+            const tags = computedData?.tags || [];
+            
+            // Update modifiedAt timestamp and tags
             await tx.run(
               `
               MATCH (m:Memory {id: $memoryId})
-              SET m.modifiedAt = $timestamp
+              SET m.modifiedAt = $timestamp,
+                  m.tags = $tags
               `,
-              { memoryId: existingMemoryId, timestamp: now }
+              { memoryId: existingMemoryId, timestamp: now, tags }
+            );
+            
+            // Clear existing tag relationships
+            await tx.run(
+              `
+              MATCH (m:Memory {id: $memoryId})-[r:HAS_TAG]->()
+              DELETE r
+              `,
+              { memoryId: existingMemoryId }
+            );
+            
+            // Create tag nodes and relationships
+            for (const tag of tags) {
+              // Create tag and relationship in one transaction
+              await tx.run(
+                `
+                MERGE (t:Tag {name: $tag})
+                WITH t
+                MATCH (m:Memory {id: $memoryId})
+                CREATE (m)-[:HAS_TAG]->(t)
+                `,
+                { memoryId: existingMemoryId, tag }
+              );
+            }
+            
+            // Clean up orphaned tags at the end of tag creation process
+            await tx.run(
+              `
+              MATCH (t:Tag)
+              WHERE NOT (t)<-[:HAS_TAG]-()
+              DELETE t
+              `
             );
 
             // Add to created memories with the existing ID
@@ -353,7 +416,7 @@ export class Neo4jKnowledgeGraphManager
               createdAt: memoryInput.createdAt,
               modifiedAt: now,
               lastAccessed: memoryInput.lastAccessed,
-              tags: memoryInput.tags,
+              tags,
               observations: memoryInput.observations
             });
             
@@ -448,24 +511,26 @@ export class Neo4jKnowledgeGraphManager
           
           // Create tag nodes and relationships
           for (const tag of tags) {
-            // Create tag if it doesn't exist
+            // Create tag and relationship in one transaction
             await tx.run(
               `
               MERGE (t:Tag {name: $tag})
-              `,
-              { tag }
-            );
-            
-            // Create relationship to tag
-            await tx.run(
-              `
+              WITH t
               MATCH (m:Memory {id: $memoryId})
-              MATCH (t:Tag {name: $tag})
               CREATE (m)-[:HAS_TAG]->(t)
               `,
               { memoryId: memory.id, tag }
             );
           }
+          
+          // Clean up orphaned tags at the end of tag creation process
+          await tx.run(
+            `
+            MATCH (t:Tag)
+            WHERE NOT (t)<-[:HAS_TAG]-()
+            DELETE t
+            `
+          );
 
           createdMemories.push({
             id: memory.id,
@@ -1063,10 +1128,13 @@ export class Neo4jKnowledgeGraphManager
             OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
             OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
             
+            // Order observations by createdAt before collecting
+            WITH m, t, o ORDER BY o.createdAt ASC
+            
             RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType, 
                    m.metadata AS metadata,
                    m.createdAt AS createdAt, m.modifiedAt AS modifiedAt, m.lastAccessed AS lastAccessed,
-                   // Sort observations chronologically (oldest first)
+                   // Collect ordered observations chronologically (oldest first)
                    [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) 
                     WHERE obs.content IS NOT NULL 
                     | obs] AS observationObjects,
@@ -1269,8 +1337,9 @@ export class Neo4jKnowledgeGraphManager
                distance: length(path2)
              })[0..3] as descendants,
              o, t
+        ORDER BY o.createdAt ASC
         
-        // Order observations chronologically
+        // Collect observations after ordering
         WITH m, ancestors, descendants, t,
              collect(DISTINCT {content: o.content, createdAt: o.createdAt, source: o.source, confidence: o.confidence}) AS observationObjects
         ORDER BY m.id  
@@ -1407,6 +1476,10 @@ export class Neo4jKnowledgeGraphManager
         LIMIT 20
         OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
         OPTIONAL MATCH (m)-[:HAS_TAG]->(t2:Tag)
+        
+        // Order observations before collecting
+        WITH m, t2, o, tagMatches ORDER BY o.createdAt ASC
+        
         RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType, 
                m.metadata AS metadata,
                m.createdAt AS createdAt, m.modifiedAt AS modifiedAt, m.lastAccessed AS lastAccessed,
@@ -1686,18 +1759,21 @@ export class Neo4jKnowledgeGraphManager
 
         // Create new tag nodes and relationships
         for (const tag of tags) {
-          // Create tag if it doesn't exist
+          // Create tag and relationship in one transaction
           await tx.run(`
             MERGE (t:Tag {name: $tag})
-          `, { tag });
-          
-          // Create relationship to tag
-          await tx.run(`
+            WITH t
             MATCH (m:Memory {id: $memoryId})
-            MATCH (t:Tag {name: $tag})
             CREATE (m)-[:HAS_TAG]->(t)
           `, { memoryId, tag });
         }
+        
+        // Clean up orphaned tags at the end of tag creation process
+        await tx.run(`
+          MATCH (t:Tag)
+          WHERE NOT (t)<-[:HAS_TAG]-()
+          DELETE t
+        `);
 
         await tx.commit();
       } catch (error) {
@@ -1781,6 +1857,10 @@ export class Neo4jKnowledgeGraphManager
       cypher += `
         OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
         OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
+        
+        // Order observations before collecting
+        WITH m, t, o, score ORDER BY o.createdAt ASC
+        
         RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType,
                m.metadata AS metadata, m.createdAt AS createdAt,
                m.modifiedAt AS modifiedAt, m.lastAccessed AS lastAccessed,
@@ -1935,29 +2015,15 @@ export class Neo4jKnowledgeGraphManager
     } catch (error) {
       this.logger.error("Enhanced search failed:", extractError(error));
       
-      // Fallback to filtered wildcard search that respects memory types
-      const summaries = await this.getMemorySummaries();
-      
-      let memories: MemoryResponse[] = summaries.map(summary => ({
-        id: summary.id,
-        name: summary.name,
-        memoryType: summary.memoryType,
-        observations: []
-      }));
-      
-      // Apply memory type filtering if specified  
-      if (memoryTypes && memoryTypes.length > 0) {
-        memories = memories.filter(memory => memoryTypes.includes(memory.memoryType));
-      }
-      
-      // Apply limit if specified
-      const actualLimit = limit !== undefined && limit !== null ? limit : 10;
-      memories = memories.slice(0, actualLimit);
+      // Fallback to searchNodes
+      const searchResult = await this.searchNodes(query, limit, memoryTypes, threshold);
+      const queryTime = Date.now() - startTime;
       
       return {
-        memories,
-        relations: [],
+        memories: searchResult.memories,
+        relations: searchResult.relations,
         _meta: {
+          queryTime,
           message: "Fallback search used due to enhanced search failure."
         }
       };

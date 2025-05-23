@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2025-05-23
+
+### Enhanced
+- Implemented comprehensive anti-fragmentation guidance with concrete examples
+- Added explicit decision criteria to prevent memory fragmentation mistakes
+- Enhanced tool descriptions with visual anti-pattern examples and warning systems
+
+### Key Improvements
+- **Anti-Pattern Detection**: Clear warnings when creating multiple related memories that should be one
+- **Decision Criteria**: "Can someone accomplish the task using only this observation?" test
+- **Visual Examples**: ❌/✅ contrast showing wrong vs right approaches in parameter descriptions
+- **Fragmentation Prevention**: Explicit guidance against creating memories that need relations to work together
+
+### Tool-Specific Changes
+- `memory_manage`: Added comprehensive anti-pattern examples in parameter descriptions showing fragmentation vs proper consolidation
+- `observation_manage`: Added decision test criteria with concrete examples of fragmented vs complete modules
+- Enhanced descriptions now show exactly what fragmentation looks like and how to avoid it
+
+### Technical Impact
+- Eliminates common AI mistake of creating multiple related memories instead of one consolidated memory
+- Provides concrete decision framework for determining memory vs observation boundaries
+- Includes explicit warnings about relation creation as fragmentation indicator
+- Clear visual examples prevent abstract guidance misinterpretation
+
 ## [2.0.6] - 2025-05-23
 
 ### Enhanced

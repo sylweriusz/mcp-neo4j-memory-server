@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2025-05-23
+
+### Enhanced
+- Implemented structural memory guidance in all MCP tool descriptions
+- Added architectural discipline for metadata vs observations usage patterns
+- Enhanced tool descriptions to prevent information fragmentation
+
+### Key Improvements
+- **Structural Pattern**: Metadata for architectural overviews (schemas, hierarchies, patterns), observations for complete functional modules
+- **Anti-fragmentation**: Each observation should be self-contained and actionable, not sentence fragments
+- **Architectural Consistency**: Relations reflect structural relationships from metadata schemas
+- **Database Organization**: Enhanced guidance for clean knowledge architecture by project/domain
+
+### Tool-Specific Changes
+- `memory_manage`: Added structural approach guidance for metadata/observations separation
+- `memory_retrieve`: Enhanced with structural pattern awareness for comprehensive responses
+- `memory_search`: Added hint about well-structured memories preventing fragmentation
+- `observation_manage`: Emphasized complete functional modules over fragments
+- `relation_manage`: Connected relationship types to metadata schemas for consistency
+- `database_switch`: Added structural organization tips for clean architecture
+
+### Technical Impact
+- Prevents knowledge rot through architectural discipline
+- Eliminates scattered information fragments across observations
+- Creates maintainable, queryable knowledge structures
+- Enforces separation of concerns between structural and procedural information
+
 ## [2.0.5] - 2025-05-22
 
 ### Fixed

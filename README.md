@@ -1,9 +1,11 @@
-# MCP Neo4j Knowledge Graph Memory Server
+# MCP Neo4j Knowledge Graph Memory Server v2.0.6
 
-*A Model Context Protocol (MCP) server that provides persistent memory capabilities using Neo4j as the backend. Supports semantic search, knowledge graphs, and structured metadata storage.*
+*A Model Context Protocol (MCP) server that provides persistent memory capabilities using Neo4j as the backend. Features structured memory guidance, semantic search, knowledge graphs, and anti-fragmentation architecture.*
 
 ## Features
 
+- **Structured Memory Architecture**: Metadata for schemas/patterns, observations for complete procedures
+- **Anti-fragmentation Guidance**: Prevents scattered information through architectural discipline  
 - **Persistent Memory**: Store and retrieve information across AI conversations
 - **Semantic Search**: Natural language queries using vector embeddings  
 - **Knowledge Graphs**: Build relationships between memories
@@ -113,17 +115,17 @@ graph TB
     class SW,POS,TT,SD tagPipeline
 ```
 
-## API Overview (v2.0.5)
+## API Overview (v2.0.6)
 
 **Core Operations (6 tools total):**
-- `memory_manage`: Create, update, delete memories *(consolidated from 3 tools)*
-- `memory_retrieve`: Fetch memories by ID with graph context
-- `memory_search`: Enhanced unified search with metadata matching
-- `observation_manage`: Add, delete observations *(consolidated from 2 tools)*
-- `relation_manage`: Create, delete memory relations *(consolidated from 2 tools)*
-- `database_switch`: Database management
+- `memory_manage`: Create, update, delete memories with structural guidance *(consolidated from 3 tools)*
+- `memory_retrieve`: Fetch memories by ID with graph context and architectural patterns
+- `memory_search`: Enhanced unified search with anti-fragmentation hints
+- `observation_manage`: Add, delete complete functional modules *(consolidated from 2 tools)*
+- `relation_manage`: Create, delete memory relations with schema alignment *(consolidated from 2 tools)*
+- `database_switch`: Database management with architectural organization
 
-*Features enhanced tag extraction system v2.0 with multilingual stopwords extraction and compromise.js for improved semantic analysis and contextual memory guidance*
+*Features structural memory guidance preventing information fragmentation through metadata/observations separation and complete functional modules*
 
 ## Quick Start
 

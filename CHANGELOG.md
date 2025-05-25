@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.7] - 2025-05-23
+## [2.0.11] - 2025-05-25
+
+### Fixed
+- **Observation IDs in retrieve**: Fixed memory_retrieve to include observation IDs in response (was stripping them at line 1406)
+- **Tool description clarity**: Updated observation_manage tool description to emphasize preferred deletion by ID
+
+### Changed  
+- **observation_manage parameter description**: Now explicitly states preference for using observation IDs for deletion operations
+- **GDD documentation**: Updated observation_manage spec to note ID deletion as preferred method
+- **Response format docs**: Updated Memory Retrieval Response to show observation objects include id field
+
+### Technical Details
+- Fixed manager.ts line 1406 to include `id: o.id` in observation mapping
+- Updated index.ts tool parameter description for clearer deletion guidance
+- Ensures observation IDs are available for precise deletion operations
+
+## [2.0.10] - 2025-05-25
+
+### Added
+- **Observation IDs**: Each observation now has a unique 17-character BASE91 ID
+- **Database info in responses**: All tool responses now include `_meta.database` field showing which database was used
+- **Migration script**: Added `scripts/migrate-observation-ids.js` for existing observations
+
+### Changed
+- **observation_manage delete**: Now supports deletion by observation ID or content (backward compatible)
+- **Enhanced responses**: All tools now return consistent response format with database information
+- **Cypher queries**: Updated to return observation IDs in all search and retrieval operations
+
+### Technical Details
+- Observations use same ID format as Memory nodes (17-char BASE91 via generateCompactId)
+- Delete operations automatically detect ID vs content format
+- All handlers updated to include current database in _meta response field
+
+## [2.0.9] - 2025-05-23
 
 ### Enhanced
 - Implemented comprehensive anti-fragmentation guidance with concrete examples

@@ -144,7 +144,7 @@ export class EnhancedUnifiedSearch {
              m.memoryType as type, 
              m.metadata as metadata,
              m.nameEmbedding as embedding,
-             [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) WHERE obs.content IS NOT NULL | obs] as observationObjects,
+             [obs IN collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) WHERE obs.content IS NOT NULL | obs] as observationObjects,
              collect(DISTINCT t.name)[0..3] as tags
              ${includeGraphContext ? ',ancestors, descendants' : ''}
       ORDER BY m.name
@@ -285,7 +285,7 @@ export class EnhancedUnifiedSearch {
              m.memoryType as type, 
              m.metadata as metadata,
              m.nameEmbedding as embedding,
-             [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) WHERE obs.content IS NOT NULL | obs] as observationObjects,
+             [obs IN collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) WHERE obs.content IS NOT NULL | obs] as observationObjects,
              collect(DISTINCT t.name)[0..3] as tags
              ${includeGraphContext ? ',ancestors, descendants' : ''}
     `;

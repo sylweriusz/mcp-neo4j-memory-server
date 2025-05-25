@@ -17,6 +17,8 @@ export class ConsolidatedToolHandlers {
     updates?: any[];
     identifiers?: string[];
   }): Promise<any> {
+    const currentDb = this.manager.getCurrentDatabase?.() || { database: 'unknown' };
+    
     switch (request.operation) {
       case 'create':
         if (!request.memories) {
@@ -26,8 +28,13 @@ export class ConsolidatedToolHandlers {
           throw new Error("memories array cannot be empty");
         }
         const createdMemories = await this.manager.createMemories(request.memories);
-        // Strip embeddings for cleaner response
-        return this.stripEmbeddings(createdMemories);
+        // Strip embeddings for cleaner response and add database info
+        return {
+          ...this.stripEmbeddings(createdMemories),
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       case 'update':
         if (!request.updates) {
@@ -65,14 +72,24 @@ export class ConsolidatedToolHandlers {
             });
           }
         }
-        return updateResults;
+        return {
+          results: updateResults,
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       case 'delete':
         if (!request.identifiers) {
           throw new Error("identifiers field required for delete operation");
         }
         await this.manager.deleteMemories(request.identifiers);
-        return { deletedCount: request.identifiers.length };
+        return { 
+          deletedCount: request.identifiers.length,
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       default:
         throw new Error(`Invalid operation: ${request.operation}`);
@@ -90,14 +107,21 @@ export class ConsolidatedToolHandlers {
       contents: string[];
     }>;
   }): Promise<any> {
+    const currentDb = this.manager.getCurrentDatabase?.() || { database: 'unknown' };
+    
     switch (request.operation) {
       case 'add':
         const result = await this.manager.addObservations(request.observations);
-        // Return with added count for compatibility
-        return result.map(obs => ({
-          ...obs,
-          addedCount: obs.contents ? obs.contents.length : 0
-        }));
+        // Return with added count for compatibility and database info
+        return {
+          results: result.map(obs => ({
+            ...obs,
+            addedCount: obs.contents ? obs.contents.length : 0
+          })),
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       case 'delete':
         // Convert to format expected by manager
@@ -106,7 +130,12 @@ export class ConsolidatedToolHandlers {
           contents: obs.contents
         }));
         await this.manager.deleteObservations(deletions);
-        return { message: 'Observations deleted successfully' };
+        return { 
+          message: 'Observations deleted successfully',
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       default:
         throw new Error(`Invalid operation: ${request.operation}`);
@@ -125,13 +154,26 @@ export class ConsolidatedToolHandlers {
       relationType: string;
     }>;
   }): Promise<any> {
+    const currentDb = this.manager.getCurrentDatabase?.() || { database: 'unknown' };
+    
     switch (request.operation) {
       case 'create':
-        return await this.manager.createRelations(request.relations);
+        const created = await this.manager.createRelations(request.relations);
+        return {
+          relations: created,
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       case 'delete':
         await this.manager.deleteRelations(request.relations);
-        return { message: 'Relations deleted successfully' };
+        return { 
+          message: 'Relations deleted successfully',
+          _meta: {
+            database: currentDb.database
+          }
+        };
 
       default:
         throw new Error(`Invalid operation: ${request.operation}`);
@@ -142,6 +184,7 @@ export class ConsolidatedToolHandlers {
    * Memory retrieval tool - with chronological observation sorting
    */
   async handleMemoryRetrieve(identifiers: string[]): Promise<any> {
+    const currentDb = this.manager.getCurrentDatabase?.() || { database: 'unknown' };
     const graph = await this.manager.retrieveMemories(identifiers);
     
     // Sort observations chronologically (oldest to newest) for each memory
@@ -164,7 +207,11 @@ export class ConsolidatedToolHandlers {
     
     return {
       ...graph,
-      memories: this.stripEmbeddings(memoriesWithSortedObservations)
+      memories: this.stripEmbeddings(memoriesWithSortedObservations),
+      _meta: {
+        ...(graph._meta || {}),
+        database: currentDb.database
+      }
     };
   }
 
@@ -178,6 +225,7 @@ export class ConsolidatedToolHandlers {
     memoryTypes?: string[],
     threshold = 0.1
   ): Promise<any> {
+    const currentDb = this.manager.getCurrentDatabase?.() || { database: 'unknown' };
     const results = await this.manager.searchMemories(
       query, 
       memoryTypes, 
@@ -187,10 +235,14 @@ export class ConsolidatedToolHandlers {
     );
     
     // Enhanced search already provides properly sorted observations with timestamps
-    // No additional sorting needed - just strip embeddings
+    // No additional sorting needed - just strip embeddings and add database info
     return {
       ...results,
-      memories: this.stripEmbeddings(results.memories)
+      memories: this.stripEmbeddings(results.memories),
+      _meta: {
+        ...(results._meta || {}),
+        database: currentDb.database
+      }
     };
   }
 

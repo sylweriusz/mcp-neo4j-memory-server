@@ -25,7 +25,7 @@ export interface EnhancedSearchResult {
   id: string;
   name: string;
   type: string;
-  observations: Array<{content: string, createdAt: string}>;
+  observations: Array<{id?: string, content: string, createdAt: string}>;
   tags: string[];
   metadata: Record<string, any>;
   related?: {
@@ -88,7 +88,7 @@ export type MemoryResponse = {
   modifiedAt?: string;
   lastAccessed?: string;
   tags?: string[];
-  observations: Array<{content: string, createdAt: string}>;
+  observations: Array<{id?: string, content: string, createdAt: string}>;
   related?: { // Graph context from relationships
     ancestors?: RelatedMemory[];
     descendants?: RelatedMemory[];
@@ -135,6 +135,7 @@ export type Observation = z.infer<typeof ObservationObject>;
  * Internal observation node model with metadata
  */
 export type ObservationNode = {
+  id?: string;           // Observation unique identifier (17-char BASE91)
   content: string;       // Observation text
   createdAt?: string;    // ISO timestamp
   source?: string;       // Origin of observation

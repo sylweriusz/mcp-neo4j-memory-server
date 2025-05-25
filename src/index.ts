@@ -15,7 +15,7 @@ dotenv.config();
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.0.9"  // Version with anti-fragmentation guidance and decision criteria
+  version: "2.0.10"  // Version with observation IDs and database info in responses
 });
 
 const logger = new NullLogger();
@@ -224,10 +224,12 @@ server.tool(
     operation: z.enum(['add', 'delete']).describe("Operation type: 'add' to add new observations, 'delete' to remove existing ones"),
     observations: z.array(z.object({
       memoryId: z.string().describe("Memory ID (e.g., 'Bm\\\\jstsj8@yCf)wF>')"),
-      contents: z.array(z.string()).describe("Array of observation texts to add or delete")
+      contents: z.array(z.string()).describe("Array of observation texts to add OR observation IDs to delete. For deletion: PREFERRED to use observation IDs (17-char BASE91 like 'BnL\\\\P>E!A|[VW#.?=') for precise targeting. Can also use content strings for backward compatibility, but IDs are cleaner and unambiguous.")
     })).describe(`Observations to manage. Each observation should be a COMPLETE FUNCTIONAL MODULE.
     
     DECISION TEST: "Can someone accomplish the task using only this observation?"
+    
+    For delete operations: contents can be either observation IDs (17-char BASE91) or content strings for backward compatibility.
     
     ❌ FRAGMENTED (DON'T DO THIS):
     [{

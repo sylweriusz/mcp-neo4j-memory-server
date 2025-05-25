@@ -340,6 +340,7 @@ export class Neo4jKnowledgeGraphManager
                     `
                     MATCH (m:Memory {id: $memoryId})
                     CREATE (o:Observation {
+                      id: $observationId,
                       content: $content,
                       createdAt: $createdAt,
                       source: $source,
@@ -350,6 +351,7 @@ export class Neo4jKnowledgeGraphManager
                     `,
                     { 
                       memoryId: existingMemoryId, 
+                      observationId: generateCompactId(),
                       content: observation,
                       createdAt: now,
                       source: null,
@@ -489,6 +491,7 @@ export class Neo4jKnowledgeGraphManager
               `
               MATCH (m:Memory {id: $memoryId})
               CREATE (o:Observation {
+                id: $observationId,
                 content: $content,
                 createdAt: $createdAt,
                 source: $source,
@@ -499,6 +502,7 @@ export class Neo4jKnowledgeGraphManager
               `,
               { 
                 memoryId: memory.id, 
+                observationId: generateCompactId(),
                 content: observation,
                 createdAt: now,
                 source: null,
@@ -797,6 +801,7 @@ export class Neo4jKnowledgeGraphManager
                 `
                 MATCH (m:Memory {id: $memoryId})
                 CREATE (o:Observation {
+                  id: $observationId,
                   content: $content,
                   createdAt: $createdAt,
                   source: $source,
@@ -807,6 +812,7 @@ export class Neo4jKnowledgeGraphManager
                 `,
                 { 
                   memoryId: observation.memoryId, 
+                  observationId: generateCompactId(),
                   content,
                   createdAt: now,
                   source: null,
@@ -962,13 +968,28 @@ export class Neo4jKnowledgeGraphManager
         for (const deletion of deletions) {
           if (deletion.contents.length > 0) {
             for (const content of deletion.contents) {
-              await tx.run(
-                `
-                MATCH (m:Memory {id: $memoryId})-[:HAS_OBSERVATION]->(o:Observation {content: $content})
-                DETACH DELETE o
-                `,
-                { memoryId: deletion.memoryId, content }
-              );
+              // Check if content looks like an ID (17 char BASE91) or regular content
+              const isId = content.length === 17 && /^[!-~]+$/.test(content);
+              
+              if (isId) {
+                // Delete by ID
+                await tx.run(
+                  `
+                  MATCH (m:Memory {id: $memoryId})-[:HAS_OBSERVATION]->(o:Observation {id: $observationId})
+                  DETACH DELETE o
+                  `,
+                  { memoryId: deletion.memoryId, observationId: content }
+                );
+              } else {
+                // Delete by content (backward compatibility)
+                await tx.run(
+                  `
+                  MATCH (m:Memory {id: $memoryId})-[:HAS_OBSERVATION]->(o:Observation {content: $content})
+                  DETACH DELETE o
+                  `,
+                  { memoryId: deletion.memoryId, content }
+                );
+              }
             }
             
             // Mark this memory for tag update
@@ -1135,7 +1156,7 @@ export class Neo4jKnowledgeGraphManager
                    m.metadata AS metadata,
                    m.createdAt AS createdAt, m.modifiedAt AS modifiedAt, m.lastAccessed AS lastAccessed,
                    // Collect ordered observations chronologically (oldest first)
-                   [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) 
+                   [obs IN collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) 
                     WHERE obs.content IS NOT NULL 
                     | obs] AS observationObjects,
                    collect(DISTINCT t.name) AS tags
@@ -1341,7 +1362,7 @@ export class Neo4jKnowledgeGraphManager
         
         // Collect observations after ordering
         WITH m, ancestors, descendants, t,
-             collect(DISTINCT {content: o.content, createdAt: o.createdAt, source: o.source, confidence: o.confidence}) AS observationObjects
+             collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt, source: o.source, confidence: o.confidence}) AS observationObjects
         ORDER BY m.id  
         
         RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType, 
@@ -1382,6 +1403,7 @@ export class Neo4jKnowledgeGraphManager
               return timeA - timeB; // Ascending order (oldest first)
             })
             .map(o => ({
+              id: o.id,        // Include observation ID for deletion operations
               content: o.content,
               createdAt: o.createdAt
             }));    // Return objects with content and createdAt
@@ -2030,6 +2052,16 @@ export class Neo4jKnowledgeGraphManager
     } finally {
       await session.close();
     }
+  }
+
+  /**
+   * Get current database info
+   */
+  getCurrentDatabase(): { database: string; uri: string } {
+    return {
+      database: this.database || "neo4j",
+      uri: this.neo4jConfig?.uri || "unknown"
+    };
   }
 
   /**

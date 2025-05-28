@@ -511,6 +511,11 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **Memory Usage**: 60% lower than Node-NLP approach
 - **Quality Consistency**: Stable across all domain types
 
+### 6.8 Temporal Tag Drift
+- **New Tag Preference**: When observations are added, new tag candidates receive a 10% weight boost (1.1x multiplier)
+- **Rationale**: Maintains tag relevance by slightly favoring recent context while preserving historical accuracy
+- **Implementation**: Apply 1.1x weight multiplier to tags extracted from new observations during re-extraction
+
 ## 7. API Interface
 
 ### 7.1 Consolidated MCP Tools (6 total)

@@ -45,9 +45,11 @@ export class ManageObservationsUseCase {
           console.error(`[DEBUG] Observation contents: ${JSON.stringify(observationContents)}`);
           console.error(`[DEBUG] Memory name: ${updatedMemory.name}`);
           
-          const newTags = await this.tagExtractionService.extractTags(
+          const newTags = await this.tagExtractionService.extractTagsForMemory(
             updatedMemory.name,
-            observationContents
+            observationContents,
+            updatedMemory.tags || [],
+            true  // Signal that we're adding new observations
           );
           console.error(`[DEBUG] Extracted tags: ${newTags.join(', ')}`);
           console.error(`[DEBUG] Current tags: ${(updatedMemory.tags || []).join(', ')}`);

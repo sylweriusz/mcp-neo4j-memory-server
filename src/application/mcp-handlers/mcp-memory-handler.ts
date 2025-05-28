@@ -1,0 +1,174 @@
+/**
+ * MCP Memory Handler
+ * Single responsibility: handle memory-related MCP requests using clean architecture
+ */
+import { DIContainer } from '../../container/di-container';
+
+export class McpMemoryHandler {
+  private container: DIContainer;
+
+  constructor() {
+    this.container = DIContainer.getInstance();
+  }
+
+  async handleMemoryManage(request: {
+    operation: 'create' | 'update' | 'delete';
+    memories?: any[];
+    updates?: any[];
+    identifiers?: string[];
+  }): Promise<any> {
+    const currentDb = this.container.getCurrentDatabase();
+    
+    switch (request.operation) {
+      case 'create':
+        return this.handleCreateMemories(request.memories!, currentDb);
+      case 'update':
+        return this.handleUpdateMemories(request.updates!, currentDb);
+      case 'delete':
+        return this.handleDeleteMemories(request.identifiers!, currentDb);
+      default:
+        throw new Error(`Invalid operation: ${request.operation}`);
+    }
+  }
+
+  async handleMemoryRetrieve(identifiers: string[]): Promise<any> {
+    const currentDb = this.container.getCurrentDatabase();
+    const memoryRepo = this.container.getMemoryRepository();
+    
+    const memories = await memoryRepo.findByIds(identifiers);
+    
+    return {
+      memories: memories.map(memory => this.stripEmbeddings(memory)),
+      _meta: {
+        database: currentDb.database,
+        retrieved: memories.length
+      }
+    };
+  }
+
+  async handleMemorySearch(
+    query: string,
+    limit: number,
+    includeGraphContext: boolean,
+    memoryTypes?: string[],
+    threshold?: number
+  ): Promise<any> {
+    // Parameter validation performed
+    
+    const currentDb = this.container.getCurrentDatabase();
+    const searchUseCase = this.container.getSearchMemoriesUseCase();
+    
+    const results = await searchUseCase.execute({
+      query,
+      limit,
+      includeGraphContext,
+      memoryTypes,
+      threshold
+    });
+
+    return {
+      memories: results.map(result => ({
+        ...this.stripEmbeddings(result.memory),
+        score: result.score
+      })),
+      _meta: {
+        database: currentDb.database,
+        total: results.length,
+        query: query,
+        queryTime: Date.now()
+      }
+    };
+  }
+
+  private async handleCreateMemories(memories: any[], currentDb: any): Promise<any> {
+    if (!memories || !Array.isArray(memories) || memories.length === 0) {
+      throw new Error("memories array cannot be empty");
+    }
+    
+    const createUseCase = this.container.getCreateMemoryUseCase();
+    const results = [];
+    
+    for (const memoryInput of memories) {
+      try {
+        const memory = await createUseCase.execute(memoryInput);
+        results.push(this.stripEmbeddings(memory));
+      } catch (error) {
+        results.push({
+          error: `Failed to create memory: ${error}`,
+          input: memoryInput
+        });
+      }
+    }
+    
+    return {
+      memories: results,
+      _meta: {
+        database: currentDb.database,
+        created: results.filter(r => !r.error).length,
+        errors: results.filter(r => r.error).length
+      }
+    };
+  }
+
+  private async handleUpdateMemories(updates: any[], currentDb: any): Promise<any> {
+    if (!updates || !Array.isArray(updates) || updates.length === 0) {
+      throw new Error("updates array cannot be empty");
+    }
+    
+    const updateUseCase = this.container.getUpdateMemoryUseCase();
+    const results = [];
+    
+    for (const updateInput of updates) {
+      try {
+        const memory = await updateUseCase.execute(updateInput);
+        results.push(this.stripEmbeddings(memory));
+      } catch (error) {
+        results.push({
+          error: `Failed to update memory: ${error}`,
+          input: updateInput
+        });
+      }
+    }
+    
+    return {
+      memories: results,
+      _meta: {
+        database: currentDb.database,
+        updated: results.filter(r => !r.error).length,
+        errors: results.filter(r => r.error).length
+      }
+    };
+  }
+
+  private async handleDeleteMemories(identifiers: string[], currentDb: any): Promise<any> {
+    if (!identifiers || !Array.isArray(identifiers) || identifiers.length === 0) {
+      throw new Error("identifiers array cannot be empty");
+    }
+    
+    const deleteUseCase = this.container.getDeleteMemoryUseCase();
+    const results = [];
+    
+    for (const id of identifiers) {
+      try {
+        await deleteUseCase.execute(id);
+        results.push({ id, deleted: true });
+      } catch (error) {
+        results.push({ id, error: `Failed to delete memory: ${error}` });
+      }
+    }
+    
+    return {
+      results,
+      _meta: {
+        database: currentDb.database,
+        deleted: results.filter(r => r.deleted).length,
+        errors: results.filter(r => r.error).length
+      }
+    };
+  }
+
+  private stripEmbeddings(memory: any): any {
+    const { nameEmbedding, ...cleanMemory } = memory;
+    return cleanMemory;
+  }
+}

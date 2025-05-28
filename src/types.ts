@@ -41,6 +41,11 @@ export interface RelatedMemory {
   type: string;
   relation: string;
   distance: number;
+  // Enhanced relationship metadata (GDD v2.0.12+)
+  strength?: number;      // 0.0-1.0
+  context?: string[];     // Domain contexts
+  source?: string;        // "agent" | "user" | "system"
+  createdAt?: string;     // ISO timestamp
 }
 
 /**
@@ -49,11 +54,7 @@ export interface RelatedMemory {
 export const MemoryObject = z.object({
   name: z.string().describe("The name of the memory"),
   memoryType: z.string().describe("The type of the memory"),
-  metadata: z.record(z.any()).optional().transform((val) => {
-    // Ensure metadata is always a plain JavaScript object, not a Map
-    return val && typeof val === 'object' && !(val instanceof Array) ? 
-      Object.fromEntries(Object.entries(val)) : val;
-  }).describe("Flexible structured data (JSON)"),
+  metadata: z.record(z.any()).optional().describe("Flexible structured data (JSON)"),
   createdAt: z.string().optional().describe("ISO timestamp when memory was created"),
   modifiedAt: z.string().optional().describe("ISO timestamp when memory was last modified"),
   lastAccessed: z.string().optional().describe("ISO timestamp when memory was last accessed"),
@@ -135,7 +136,7 @@ export type Observation = z.infer<typeof ObservationObject>;
  * Internal observation node model with metadata
  */
 export type ObservationNode = {
-  id?: string;           // Observation unique identifier (17-char BASE91)
+  id?: string;           // 18-char BASE85-based identifier (migrated from 17-char BASE91)
   content: string;       // Observation text
   createdAt?: string;    // ISO timestamp
   source?: string;       // Origin of observation
@@ -191,26 +192,4 @@ export const DatabaseSwitchObject = z.object({
 });
 export type DatabaseSwitch = z.infer<typeof DatabaseSwitchObject>;
 
-/**
- * The KnowledgeGraphManagerInterface is the primary interface for interacting with the knowledge graph
- */
-export type KnowledgeGraphManagerInterface = {
-  // Core memory operations
-  createMemories(memories: MemoryInput[]): Promise<MemoryResponse[]>;
-  createRelations(relations: Relation[]): Promise<Relation[]>;
-  addObservations(observations: Array<Observation>): Promise<Observation[]>;
-  deleteMemories(memoryIds: string[]): Promise<void>;
-  deleteObservations(deletions: Array<Observation>): Promise<void>;
-  deleteRelations(relations: Relation[]): Promise<void>;
-  searchMemories(query: string): Promise<KnowledgeGraph>;
-  searchMemoriesByTags(tags: string[]): Promise<KnowledgeGraph>;
-  retrieveMemories(ids: string[]): Promise<KnowledgeGraph>;
-  getMemorySummaries(): Promise<{ id: string; name: string; memoryType: string; children?: { id: string; name: string; memoryType: string }[] }[]>;
-  updateMemoryMetadata?(memoryId: string, metadata: Record<string, any>): Promise<void>;
-  updateMemoryName?(memoryId: string, name: string): Promise<void>;
-  updateMemoryType?(memoryId: string, memoryType: string): Promise<void>;
-  switchDatabase?(databaseName: string, createIfNotExists?: boolean): Promise<DatabaseInfo>;
-  getCurrentDatabase?(): { database: string; uri: string };
-  listDatabases?(): Promise<string[]>;
-  searchMemoriesByMetadata?(query: string, memoryType?: string): Promise<KnowledgeGraph>;
-};
+

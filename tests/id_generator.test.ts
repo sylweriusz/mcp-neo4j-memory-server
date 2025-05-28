@@ -11,7 +11,7 @@ describe('ID Generator', () => {
   describe('generateCompactId', () => {
     it('should generate a compact ID of correct length', () => {
       const id = generateCompactId();
-      expect(id.length).toBe(17);
+      expect(id.length).toBe(18);
     });
 
     it('should generate unique IDs', () => {
@@ -40,8 +40,8 @@ describe('ID Generator', () => {
       expect(isValidCompactId(id2)).toBe(true);
       
       // Both should be proper length
-      expect(id1.length).toBe(17);
-      expect(id2.length).toBe(17);
+      expect(id1.length).toBe(18);
+      expect(id2.length).toBe(18);
       
       // Note: Time-sortable property comes from ULID base, 
       // but due to compression we rely on explicit timestamps in entities
@@ -60,9 +60,12 @@ describe('ID Generator', () => {
     });
 
     it('should return false for IDs with invalid characters', () => {
-      // Create an ID with invalid characters (backtick not in BASE91_CHARS)
-      expect(isValidCompactId('`'.repeat(17))).toBe(false);
-      expect(isValidCompactId(' '.repeat(17))).toBe(false);
+      // Test characters not in BASE85 charset (including removed problematic ones)
+      expect(isValidCompactId('\\'.repeat(18))).toBe(false);
+      expect(isValidCompactId('<'.repeat(18))).toBe(false);
+      expect(isValidCompactId('['.repeat(18))).toBe(false);
+      expect(isValidCompactId('`'.repeat(18))).toBe(false);
+      expect(isValidCompactId(' '.repeat(18))).toBe(false);
     });
 
     it('should return false for empty input', () => {
@@ -102,7 +105,7 @@ describe('ID Generator', () => {
       const batch = generateCompactIdBatch(5);
       batch.forEach(id => {
         expect(isValidCompactId(id)).toBe(true);
-        expect(id.length).toBe(17);
+        expect(id.length).toBe(18);
       });
     });
 
@@ -118,7 +121,7 @@ describe('ID Generator', () => {
       const id = generateCompactIdWithPrefix(prefix);
       
       expect(id.startsWith(prefix)).toBe(true);
-      expect(id.length).toBe(prefix.length + 17);
+      expect(id.length).toBe(prefix.length + 18);
     });
 
     it('should generate valid compact ID after prefix', () => {
@@ -145,9 +148,9 @@ describe('ID Generator', () => {
   describe('compressionStats', () => {
     it('should have correct compression metrics', () => {
       expect(compressionStats.standardUlidLength).toBe(26);
-      expect(compressionStats.compactIdLength).toBe(17);
-      expect(compressionStats.compressionRatio).toBeCloseTo(17/26, 3);
-      expect(compressionStats.spaceSaved).toBeCloseTo((26-17)/26, 3);
+      expect(compressionStats.compactIdLength).toBe(18);
+      expect(compressionStats.compressionRatio).toBeCloseTo(18/26, 3);
+      expect(compressionStats.spaceSaved).toBeCloseTo((26-18)/26, 3);
       expect(compressionStats.totalCombinations).toMatch(/^\d\.\d+e\+\d+$/);
     });
 
@@ -195,7 +198,7 @@ describe('ID Generator', () => {
       // Verify all IDs are valid
       ids.forEach(id => {
         expect(isValidCompactId(id)).toBe(true);
-        expect(id.length).toBe(17);
+        expect(id.length).toBe(18);
       });
       
       // Note: For time-based queries, we use the explicit createdAt/modifiedAt 
@@ -203,8 +206,8 @@ describe('ID Generator', () => {
     });
 
     it('should provide sufficient entropy for large datasets', () => {
-      // 91^17 should provide enough combinations for massive datasets
-      const entropy = Math.pow(91, 17);
+      // 85^18 should provide enough combinations for massive datasets
+      const entropy = Math.pow(85, 18);
       expect(entropy).toBeGreaterThan(1e30); // More than 10^30 combinations
     });
 
@@ -213,13 +216,19 @@ describe('ID Generator', () => {
       const ids = generateCompactIdBatch(100);
       const allChars = ids.join('');
       
-      // Should not contain backtick which was problematic in BASE85
-      expect(allChars).not.toContain('`');
+      // Should not contain removed dangerous characters
+      expect(allChars).not.toContain('\\');
+      expect(allChars).not.toContain('<');
+      expect(allChars).not.toContain('>');
+      expect(allChars).not.toContain('[');
+      expect(allChars).not.toContain(']');
+      expect(allChars).not.toContain('|');
+      expect(allChars).not.toContain('^');
       
-      // Should only contain characters from BASE91_CHARS
-      const base91Chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;<=>?@[\\]^_{|}~';
+      // Should only contain characters from BASE85_CHARS (updated for safety)
+      const base85Chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;=?@_{}~';
       for (const char of allChars) {
-        expect(base91Chars).toContain(char);
+        expect(base85Chars).toContain(char);
       }
     });
   });

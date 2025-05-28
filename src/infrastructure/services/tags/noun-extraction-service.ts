@@ -31,7 +31,20 @@ export class NounExtractionService {
 
       // Combine and deduplicate
       const allNouns = [...properNouns, ...commonNouns];
-      return [...new Set(allNouns)].filter(noun => noun.length > 2);
+      const deduped = [...new Set(allNouns)].filter(noun => noun.length > 2);
+      
+      console.error(`[NOUN EXTRACTION] Input: "${text}"`);
+      console.error(`[NOUN EXTRACTION] Proper nouns: [${properNouns.join(', ')}]`);
+      console.error(`[NOUN EXTRACTION] Common nouns: [${commonNouns.join(', ')}]`);
+      console.error(`[NOUN EXTRACTION] Final: [${deduped.join(', ')}]`);
+      
+      // If compromise.js returns the whole text as one noun, use fallback
+      if (deduped.length === 1 && deduped[0].split(' ').length > 3) {
+        console.error(`[NOUN EXTRACTION] Compromise returned whole phrase, using fallback`);
+        return this.fallbackNounExtraction(text);
+      }
+      
+      return deduped;
 
     } catch (error) {
       console.warn('Compromise.js extraction failed, using fallback:', error);
@@ -58,20 +71,21 @@ export class NounExtractionService {
   }
 
   private fallbackNounExtraction(text: string): string[] {
-    // Simple regex-based fallback if compromise fails
+    // Unicode-aware regex-based fallback if compromise fails
     const words = text
       .toLowerCase()
       .split(/\s+/)
       .map(word => this.cleanPunctuation(word))
-      .filter(word => word.length > 2 && /^[a-z]+$/.test(word));
+      .filter(word => word.length > 2 && /^[\p{L}]+$/u.test(word));
 
+    console.error(`[NOUN EXTRACTION] Fallback extracted: [${words.join(', ')}]`);
     return [...new Set(words)];
   }
 
   private cleanPunctuation(text: string): string {
-    // Remove leading/trailing punctuation and internal punctuation
+    // Remove leading/trailing punctuation and internal punctuation - Unicode-aware
     return text
-      .replace(/^[^\w]+|[^\w]+$/g, '')
+      .replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '')
       .replace(/[,;:!?'"()[\]{}]/g, '');
   }
 }

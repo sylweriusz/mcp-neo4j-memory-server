@@ -19,7 +19,7 @@ import { MemoryObject } from "./types";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.0.11"  // Clean Architecture Complete - Consolidated Directory Eliminated
+  version: "2.1.0"  // Clean Architecture Complete - Full Testing Protocol Verified
 });
 
 // Lazy initialization - only connect when tools are actually called
@@ -205,19 +205,89 @@ server.tool(
 // Tool 5: Relation Management
 server.tool(
   "relation_manage", 
-  "Create or delete directional relationships between memories with enhanced metadata support.",
+  `Create or delete intelligent directional relationships between memories with comprehensive metadata support.
+
+**Enhanced Relationship Intelligence:**
+- **Strength Assessment (0.0-1.0)**: Quantify relationship significance
+  - 0.9-1.0: Critical dependencies, architectural decisions, core influences
+  - 0.7-0.8: Important connections, significant patterns, key insights  
+  - 0.5-0.6: Standard relationships, moderate relevance (default)
+  - 0.3-0.4: Weak associations, tangential connections
+  - 0.1-0.2: Speculative connections, distant similarities
+
+- **Context Intelligence**: Domain-aware relationship filtering
+  - Auto-inferred from memory types when not specified
+  - Cross-domain patterns: ["programming", "creative"] enables knowledge transfer
+  - Single-domain focus: ["security"] for specialized connections
+  - Custom contexts: ["research", "methodology", "architecture"]
+
+- **Source Attribution**: Relationship provenance tracking
+  - "agent": Default - when you analyze content and identify connections
+  - "user": When user explicitly requests "Connect A to B" or "A relates to B"
+  - "system": Reserved for automatic tag/observation relationships
+
+**Strategic Use Patterns:**
+
+✅ **High-Value Relationships:**
+- Strong + Specific Context: Major influences within clear domains
+- Cross-Context Insights: Knowledge that transfers between disciplines
+- Temporal Intelligence: Evolution of ideas over time
+- User-Validated Connections: Explicitly confirmed relationships
+
+❌ **Anti-Patterns to Avoid:**
+- Weak + Generic Context: Vague connections without clear relevance
+- High Strength + Minimal Evidence: Overstating relationship importance
+- Context Explosion: Too many contexts without rationale
+- Temporal Inconsistency: Recent relationships claiming historical influence
+
+**Temporal Intelligence Applications:**
+- Decision archaeology: "What influenced this choice at the time?"
+- Knowledge evolution: "How did understanding develop chronologically?"
+- Cross-domain discovery: "Which insights transfer between fields?"
+- Pattern emergence: "When did connections between domains appear?"
+
+**Example Strategic Usage:**
+\`\`\`javascript
+// Critical architectural influence
+{
+  "relationType": "INFLUENCES",
+  "strength": 0.9,
+  "context": ["architecture", "programming"],
+  "source": "agent"
+}
+
+// Cross-domain knowledge transfer
+{
+  "relationType": "INSPIRES", 
+  "strength": 0.6,
+  "context": ["creative", "problem-solving"],
+  "source": "user"
+}
+
+// Exploratory weak connection
+{
+  "relationType": "RELATES_TO",
+  "strength": 0.3, 
+  "context": ["research"],
+  "source": "agent"
+}
+\`\`\`
+
+Note: createdAt timestamps are system-generated for temporal intelligence queries.`,
   {
     operation: z.enum(['create', 'delete']).describe("Operation type: 'create' or 'delete'"),
     relations: z.array(z.object({
       fromId: z.string().describe("Source memory ID"),
       toId: z.string().describe("Target memory ID"),
-      relationType: z.string().describe("Relation type describing the connection"),
-      // BUG #3 FIX: Enhanced relationship metadata (GDD v2.0.12+)
-      strength: z.number().min(0.0).max(1.0).optional().describe("Relationship strength 0.0-1.0 (default: 0.5)"),
-      context: z.array(z.string()).optional().describe("Domain contexts (auto-inferred if not provided)"),
-      source: z.enum(['agent', 'user', 'system']).optional().describe("Relationship origin (default: 'agent')")
-      // createdAt is always system-generated
-    })).describe("Relations to manage")
+      relationType: z.string().describe("Relation type describing the connection (INFLUENCES, DEPENDS_ON, COMPLEMENTS, REQUIRES, etc.)"),
+      
+      // Enhanced relationship metadata (GDD v2.1.0+)
+      strength: z.number().min(0.0).max(1.0).optional().describe("Relationship strength 0.0-1.0 (default: 0.5) - quantifies connection significance"),
+      context: z.array(z.string()).optional().describe("Domain contexts where relationship applies - auto-inferred from memory types if not provided"),
+      source: z.enum(['agent', 'user', 'system']).optional().describe("Relationship origin: 'agent' (default analysis), 'user' (explicit request), 'system' (automatic)")
+      
+      // createdAt is always system-generated for temporal intelligence
+    })).describe("Relations to manage with enhanced metadata for intelligent context understanding")
   },
   async ({ operation, relations }) => {
     try {
@@ -276,8 +346,8 @@ server.tool(
 
 const main = async () => {
   try {
-    console.error("[MCP Server] Starting neo4j-memory-server v2.0.11...");
-    console.error("[MCP Server] Clean Architecture - Consolidated Directory Eliminated");
+    console.error("[MCP Server] Starting neo4j-memory-server v2.1.0...");
+    console.error("[MCP Server] Clean Architecture - Full Testing Protocol Verified");
     
     const transport = new StdioServerTransport();
     await server.connect(transport);

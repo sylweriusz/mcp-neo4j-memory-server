@@ -30,7 +30,7 @@ export class ManageObservationsUseCase {
       request.contents
     );
 
-    // BUG #2 FIX: Re-extract tags when observations are added (GDD v2.0.11 requirement)
+    // BUG #2 FIX: Re-extract tags when observations are added (GDD v2.1.0 requirement)
     if (this.tagExtractionService) {
       try {
         console.error(`[DEBUG] Starting tag re-extraction for memory ${request.memoryId}`);

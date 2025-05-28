@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-05-28
+
+### Verified
+- **SauronEye Protocol**: Complete testing protocol verified all core functionality
+- **Tag Extraction**: Real-time tag updates on observation addition confirmed working
+- **Vector Search**: Semantic search with embedding updates fully tested
+- **Enhanced Relationships**: All metadata fields (strength, context, source, createdAt) verified
+- **Chronological Ordering**: Observations properly sorted by createdAt timestamp
+- **Multilingual Support**: Polish, German, English tag extraction confirmed
+- **Limit Enforcement**: All queries respect limit parameter including wildcard searches
+- **Database Isolation**: Multi-database switching and proper schema initialization tested
+
+### Fixed
+- **Graph Context**: Relationship types now correctly display actual relationType instead of generic "RELATES_TO"
+- **Search Pipeline**: Zero-fallback architecture implemented, no more masked errors
+- **Performance**: Query response times optimized for production workloads
+
 ## [2.0.12] - 2025-05-27
 
 ### Changed

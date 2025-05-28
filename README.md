@@ -1,4 +1,4 @@
-# MCP Neo4j Knowledge Graph Memory Server v2.0.9
+# MCP Neo4j Knowledge Graph Memory Server v2.1.0
 
 *A Model Context Protocol (MCP) server that provides persistent memory capabilities using Neo4j as the backend. Features structured memory guidance, semantic search, knowledge graphs, and anti-fragmentation architecture.*
 
@@ -115,7 +115,7 @@ graph TB
     class SW,POS,TT,SD tagPipeline
 ```
 
-## API Overview (v2.0.9)
+## API Overview (v2.1.0)
 
 **Core Operations (6 tools total):**
 - `memory_manage`: Create, update, delete memories with structural guidance *(consolidated from 3 tools)*

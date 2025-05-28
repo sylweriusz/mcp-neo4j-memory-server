@@ -135,7 +135,7 @@ export class SearchResultsAggregator {
     return observationObjects
       .filter(obs => obs && obs.content)
       .map(obs => ({
-        id: obs.id,  // BUG FIX: Include observation ID as required by GDD v2.0.11 section 8.4
+        id: obs.id,  // BUG FIX: Include observation ID as required by GDD v2.1.0 section 8.4
         content: obs.content,
         createdAt: obs.createdAt || new Date().toISOString()
       }))

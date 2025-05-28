@@ -1,7 +1,7 @@
 /**
  * Manage Relations Use Case
  * Clean Architecture Application Layer
- * BUG #3 FIX: Enhanced relationship metadata support (GDD v2.0.12+)
+ * BUG #3 FIX: Enhanced relationship metadata support (GDD v2.1.0+)
  */
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
@@ -62,7 +62,7 @@ export class ManageRelationsUseCase {
   }
 
   /**
-   * Context inference logic as per GDD v2.0.12+
+   * Context inference logic as per GDD v2.1.0+
    */
   private inferContext(fromMemory: any, toMemory: any): string[] {
     const typeContextMap: Record<string, string[]> = {

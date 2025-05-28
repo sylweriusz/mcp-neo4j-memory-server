@@ -36,7 +36,7 @@ ENV NEO4J_DATABASE=neo4j
 # Add metadata label
 LABEL org.opencontainers.image.title="MCP Memory Graph"
 LABEL org.opencontainers.image.description="Neo4j-based Knowledge Graph with tag search consolidation"
-LABEL org.opencontainers.image.version="2.1.0"
+LABEL org.opencontainers.image.version="2.1.1"
 LABEL org.opencontainers.image.vendor="Sylweriusz"
 
 # Set entrypoint

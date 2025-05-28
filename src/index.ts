@@ -19,7 +19,7 @@ import { MemoryObject } from "./types";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.1.0"  // Clean Architecture Complete - Full Testing Protocol Verified
+  version: "2.1.1"  // Clean Architecture Complete - Full Testing Protocol Verified
 });
 
 // Lazy initialization - only connect when tools are actually called
@@ -281,7 +281,7 @@ Note: createdAt timestamps are system-generated for temporal intelligence querie
       toId: z.string().describe("Target memory ID"),
       relationType: z.string().describe("Relation type describing the connection (INFLUENCES, DEPENDS_ON, COMPLEMENTS, REQUIRES, etc.)"),
       
-      // Enhanced relationship metadata (GDD v2.1.0+)
+      // Enhanced relationship metadata (GDD v2.1.1+)
       strength: z.number().min(0.0).max(1.0).optional().describe("Relationship strength 0.0-1.0 (default: 0.5) - quantifies connection significance"),
       context: z.array(z.string()).optional().describe("Domain contexts where relationship applies - auto-inferred from memory types if not provided"),
       source: z.enum(['agent', 'user', 'system']).optional().describe("Relationship origin: 'agent' (default analysis), 'user' (explicit request), 'system' (automatic)")
@@ -346,7 +346,7 @@ server.tool(
 
 const main = async () => {
   try {
-    console.error("[MCP Server] Starting neo4j-memory-server v2.1.0...");
+    console.error("[MCP Server] Starting neo4j-memory-server v2.1.1...");
     console.error("[MCP Server] Clean Architecture - Full Testing Protocol Verified");
     
     const transport = new StdioServerTransport();

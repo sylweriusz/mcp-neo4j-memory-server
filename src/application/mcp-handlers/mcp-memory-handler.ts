@@ -91,21 +91,31 @@ export class McpMemoryHandler {
     for (const memoryInput of memories) {
       try {
         const memory = await createUseCase.execute(memoryInput);
-        results.push(this.stripEmbeddings(memory));
+        results.push({ 
+          id: memory.id, 
+          status: "created" 
+        });
       } catch (error) {
         results.push({
-          error: `Failed to create memory: ${error}`,
-          input: memoryInput
+          id: memoryInput.name || "unknown",
+          status: "failed",
+          error: `Failed to create memory: ${error.message}`
         });
       }
     }
     
     return {
-      memories: results,
+      success: true,
+      results,
+      summary: {
+        requested: memories.length,
+        succeeded: results.filter(r => r.status === "created").length,
+        failed: results.filter(r => r.status === "failed").length
+      },
       _meta: {
         database: currentDb.database,
-        created: results.filter(r => !r.error).length,
-        errors: results.filter(r => r.error).length
+        operation: "create",
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -121,21 +131,31 @@ export class McpMemoryHandler {
     for (const updateInput of updates) {
       try {
         const memory = await updateUseCase.execute(updateInput);
-        results.push(this.stripEmbeddings(memory));
+        results.push({ 
+          id: memory.id, 
+          status: "updated" 
+        });
       } catch (error) {
         results.push({
-          error: `Failed to update memory: ${error}`,
-          input: updateInput
+          id: updateInput.id || "unknown",
+          status: "failed",
+          error: `Failed to update memory: ${error.message}`
         });
       }
     }
     
     return {
-      memories: results,
+      success: true,
+      results,
+      summary: {
+        requested: updates.length,
+        succeeded: results.filter(r => r.status === "updated").length,
+        failed: results.filter(r => r.status === "failed").length
+      },
       _meta: {
         database: currentDb.database,
-        updated: results.filter(r => !r.error).length,
-        errors: results.filter(r => r.error).length
+        operation: "update",
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -151,18 +171,31 @@ export class McpMemoryHandler {
     for (const id of identifiers) {
       try {
         await deleteUseCase.execute(id);
-        results.push({ id, deleted: true });
+        results.push({ 
+          id, 
+          status: "deleted" 
+        });
       } catch (error) {
-        results.push({ id, error: `Failed to delete memory: ${error}` });
+        results.push({ 
+          id, 
+          status: "failed",
+          error: `Failed to delete memory: ${error.message}` 
+        });
       }
     }
     
     return {
+      success: true,
       results,
+      summary: {
+        requested: identifiers.length,
+        succeeded: results.filter(r => r.status === "deleted").length,
+        failed: results.filter(r => r.status === "failed").length
+      },
       _meta: {
         database: currentDb.database,
-        deleted: results.filter(r => r.deleted).length,
-        errors: results.filter(r => r.error).length
+        operation: "delete",
+        timestamp: new Date().toISOString()
       }
     };
   }

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.12] - 2025-05-27
+
+### Changed
+- **ID encoding**: Migrated from BASE91 to BASE85 for improved serialization safety
+- **ID length**: Increased from 17 to 18 characters to accommodate BASE85 encoding
+- **Character set**: Removed 6 problematic characters (\\<>[]|^) that caused JSON/HTML/URL/Cypher escaping issues
+- **Validation**: Updated all ID validation to support both legacy 17-char and new 18-char formats during transition
+
+### Security Improvements
+- **Serialization safety**: Eliminated characters causing JSON escaping conflicts
+- **HTML compatibility**: Removed angle brackets to prevent HTML parsing issues  
+- **URL encoding**: Eliminated characters requiring percent encoding
+- **Cypher parameters**: Fixed parameter binding issues with special characters
+
+### Technical Details
+- **BASE85 charset**: `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%()*+,-./:;=?@_{|}~`
+- **Entropy maintained**: 85^18 ≈ 2.7×10^34 combinations (vs 91^17 ≈ 4.7×10^33)
+- **Backward compatibility**: ID detection supports both 17-char BASE91 and 18-char BASE85 formats
+- **Compression ratio**: 18/26 = 69% of original ULID size (31% space saved)
+
+### Migration Support
+- **Dual-mode validation**: Accepts both legacy BASE91 and new BASE85 IDs
+- **Automatic detection**: ID format detection updated for smooth transition
+- **Documentation updated**: All references to 17-char updated to 18-char throughout codebase
+
 ## [2.0.11] - 2025-05-25
 
 ### Fixed

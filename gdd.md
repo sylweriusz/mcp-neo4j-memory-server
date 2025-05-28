@@ -7,19 +7,19 @@
 #### Node Types
 - `Memory`: Primary information container
   - Properties: 
-    - `id` (string, 17-char BASE91-based, unique): Memory compact identifier
+    - `id` (string, 18-char BASE85-based, unique): Memory compact identifier
     - `name` (string): Memory human-readable name
     - `memoryType` (string): Classification label
     - `metadata` (JSON string, optional): Flexible structured data
     - `createdAt` (ISO timestamp): Memory creation time
     - `modifiedAt` (ISO timestamp): Last memory modification time
     - `lastAccessed` (ISO timestamp): Last retrieval time
-    - `nameEmbedding` (float array, 384 dimensions): Vector embedding for semantic search
+    - `nameEmbedding` (float array, 768 dimensions): Vector embedding for semantic search
     - `tags` (string array): Automatically extracted tags
 
 - `Observation`: Discrete information fragments (narrative content)
   - Properties:
-    - `id` (string, 17-char BASE91-based, unique): Observation compact identifier
+    - `id` (string, 18-char BASE85-based, unique): Observation compact identifier
     - `content` (string): Textual observation
     - `createdAt` (ISO timestamp): When observation was created
     - `source` (string, optional): Origin of information 
@@ -33,16 +33,24 @@
 #### Relationship Types
 - `HAS_OBSERVATION`:
   - Direction: `(Memory)-[:HAS_OBSERVATION]->(Observation)`
-  - No properties
+  - Properties:
+    - `createdAt` (ISO timestamp): When relationship was created
+    - `source` (string): Always "system" - automatically created during observation addition
 
 - `HAS_TAG`:
   - Direction: `(Memory)-[:HAS_TAG]->(Tag)`
-  - No properties
+  - Properties:
+    - `createdAt` (ISO timestamp): When relationship was created  
+    - `source` (string): Always "system" - automatically created during tag extraction
 
 - `RELATES_TO`:
   - Direction: `(Memory)-[:RELATES_TO]->(Memory)`
   - Properties:
-    - `relationType` (string): Relationship classifier
+    - `relationType` (string): Relationship classifier (INFLUENCES, DEPENDS_ON, etc.)
+    - `strength` (float, 0.0-1.0): Relationship strength/importance
+    - `context` (string array): Domain contexts where relationship applies
+    - `source` (string): Origin of relationship ("agent", "user", "system")
+    - `createdAt` (ISO timestamp): When relationship was created
 
 #### Constraints
 - Memory ID uniqueness: `CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE`
@@ -59,14 +67,14 @@
 #### Memory
 ```typescript
 type Memory = {
-  id: string;              // Compact 18-char identifier (ULID-based)
+  id: string;              // Compact 18-char identifier (BASE85-based)
   name: string;            // Human-readable name
   memoryType: string;      // Classification
   metadata?: Record<string, any>; // Flexible structured data (JSON)
   createdAt?: string;      // ISO timestamp of creation
   modifiedAt?: string;     // ISO timestamp of last modification
   lastAccessed?: string;   // ISO timestamp of last access
-  nameEmbedding?: number[]; // Vector embedding (384-dimension)
+  nameEmbedding?: number[]; // Vector embedding (768-dimension)
   tags?: string[];         // Extracted tags (maximum 6 per memory)
   observations: Array<{    // Observation objects with temporal context
     content: string;       // Observation text content
@@ -84,7 +92,13 @@ type Memory = {
 type Relation = {
   fromId: string;        // Source memory compact ID
   toId: string;          // Target memory compact ID  
-  relationType: string;  // Classification
+  relationType: string;  // Classification (INFLUENCES, DEPENDS_ON, etc.)
+  
+  // Enhanced metadata (v2.0.12+)
+  strength: number;      // Relationship strength 0.0-1.0 (default: 0.5)
+  context: string[];     // Domain contexts ["programming", "research", etc.]
+  source: "agent" | "user" | "system";  // Relationship origin (default: "agent")
+  createdAt: string;     // ISO timestamp of creation (system-generated)
 }
 ```
 
@@ -134,10 +148,59 @@ type KnowledgeGraph = {
 4. Collect Observation objects with content and createdAt into observations array
 5. Return composite Memory object with graph context and temporal observation data
 
-### 2.3 Relation Creation
-1. Match source Memory by id
-2. Match target Memory by id
-3. Create RELATES_TO relationship with relationType property
+### 2.3 Enhanced Relationship Creation
+1. **Memory-to-Memory Relations** (via `relation_manage` tool):
+   - Extract `relationType` from request (required)
+   - Determine `strength`: Agent-provided value OR default 0.5
+   - Determine `context`: Agent-provided array OR infer from memory types
+   - Determine `source`: Agent-provided "user" OR default "agent"
+   - Set `createdAt`: Current ISO timestamp (system-generated)
+
+2. **Memory-to-Tag Relations** (automatic during memory creation/update):
+   - Created by tag extraction service during memory processing
+   - `source`: Always "system"
+   - `createdAt`: Current ISO timestamp when tags are extracted
+
+3. **Memory-to-Observation Relations** (automatic during observation management):
+   - Created during `observation_manage` "add" operations
+   - `source`: Always "system" 
+   - `createdAt`: Current ISO timestamp when observation is added
+
+### 2.4 Context Inference Logic
+When agent does not provide explicit `context` array:
+```typescript
+function inferContext(fromMemory: Memory, toMemory: Memory): string[] {
+  const typeContextMap = {
+    'project': ['development', 'programming'],
+    'research': ['analysis', 'learning'],
+    'creative': ['writing', 'ideation'],
+    'process': ['workflow', 'methodology'],
+    'preference': ['personal', 'configuration'],
+    'review': ['feedback', 'evaluation']
+  };
+  
+  const contexts = new Set([
+    ...(typeContextMap[fromMemory.memoryType] || []),
+    ...(typeContextMap[toMemory.memoryType] || [])
+  ]);
+  
+  return Array.from(contexts);
+}
+```
+
+### 2.5 Source Determination Logic
+```typescript
+function determineSource(relationRequest: RelationRequest): string {
+  // 1. Explicit agent specification takes precedence
+  if (relationRequest.source === "user") return "user";
+  
+  // 2. System-generated relationships (tags, observations)
+  if (relationRequest.isSystemGenerated) return "system";
+  
+  // 3. Default: agent-initiated relationship
+  return "agent";
+}
+```
 
 ## 3. Critical Cypher Patterns
 
@@ -257,7 +320,20 @@ RETURN m.id as id, m.name as name, m.memoryType as type,
        ancestors, descendants
 ```
 
-### 3.5 Memory Deletion
+### 3.5 Enhanced Relationship Creation
+```cypher
+// Create enhanced relationship with full metadata
+MATCH (from:Memory {id: $fromId}), (to:Memory {id: $toId})
+CREATE (from)-[:RELATES_TO {
+  relationType: $relationType,
+  strength: $strength,
+  context: $context,
+  source: $source,
+  createdAt: $createdAt
+}]->(to)
+```
+
+### 3.6 Memory Deletion
 ```cypher
 // Delete observations
 MATCH (m:Memory {id: $memoryId})-[:HAS_OBSERVATION]->(o:Observation)
@@ -325,7 +401,7 @@ CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [
 CREATE VECTOR INDEX IF NOT EXISTS memory_name_vector_idx 
 FOR (m:Memory) ON (m.nameEmbedding)
 OPTIONS {indexConfig: {
-  `vector.dimensions`: 384,
+  `vector.dimensions`: 768,
   `vector.similarity_function`: 'cosine'
 }}
 ```
@@ -442,11 +518,11 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 **Memory Operations:**
 - `memory_manage`: Create, update, delete memories
 - `memory_retrieve`: Retrieve memories by IDs
-- `memory_search`: Enhanced unified search
+- `memory_search`: Enhanced unified search with type filtering support
 
 **Content Operations:**
 - `observation_manage`: Add, delete observations
-- `relation_manage`: Create, delete relations
+- `relation_manage`: Create intelligent directional relationships with contextual metadata
 
 **System Operations:**
 - `database_switch`: Database management
@@ -463,6 +539,17 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 }
 ```
 
+#### memory_search
+```javascript
+{
+  "query": "string",                    // Natural language search query or '*' for all memories
+  "limit": "number",                    // Maximum number of results (default: 10)
+  "includeGraphContext": "boolean",     // Include related memories (default: true)
+  "memoryTypes": ["string"],            // Filter by memory types (replaces memory_find_by_type functionality)
+  "threshold": "number"                 // Minimum relevance score threshold (default: 0.1)
+}
+```
+
 #### observation_manage
 ```javascript
 {
@@ -470,7 +557,7 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
   "observations": [
     {
       "memoryId": "string",
-      "contents": ["string"]  // For add: texts to add, For delete: PREFERRED to use observation IDs (17-char BASE91) for precision, but content strings also supported
+      "contents": ["string"]  // For add: observation texts to add, For delete: observation IDs (18-char BASE85) ONLY - content strings NOT supported
     }
   ]
 }
@@ -482,11 +569,71 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
   "operation": "create" | "delete",
   "relations": [
     {
-      "fromId": "string",
-      "toId": "string", 
-      "relationType": "string"
+      "fromId": "string",                    // Required: Source memory ID
+      "toId": "string",                      // Required: Target memory ID
+      "relationType": "string",              // Required: Relationship type
+      
+      // Optional metadata (for "create" operation only):
+      "strength": "number",                  // 0.0-1.0, defaults to 0.5
+      "context": ["string"],                 // Domain contexts, auto-inferred if not provided
+      "source": "agent" | "user" | "system" // Defaults to "agent", agent can specify "user"
+      
+      // Note: createdAt is always system-generated
     }
   ]
+}
+```
+
+#### Agent Guidance for Intelligent Relationships
+
+**When creating relationships, agents should leverage metadata for maximum intelligence:**
+
+**Strength Guidelines (0.0-1.0):**
+- `0.9-1.0`: Critical dependencies, major influences, core architectural decisions
+- `0.7-0.8`: Important connections, significant patterns, key insights
+- `0.5-0.6`: Standard relationships, general connections, moderate relevance  
+- `0.3-0.4`: Weak associations, tangential connections, minor influences
+- `0.1-0.2`: Barely related, speculative connections, distant similarities
+
+**Context Usage Patterns:**
+- **Cross-domain intelligence**: Connect programming patterns to writing processes via shared contexts
+- **Filtered suggestions**: Use context to show relevant relationships ("Show programming-related connections")
+- **Smart prioritization**: Stronger relationships in matching contexts get higher priority
+
+**Source Attribution Strategy:**
+- `"agent"`: Default - when you analyze content and identify meaningful connections
+- `"user"`: When user explicitly requests "Connect A to B" or "A is related to B"  
+- `"system"`: Reserved for automatic tag/observation relationships
+
+**Temporal Intelligence Applications:**
+- **Evolution tracking**: "How did this approach change over time?" (sort relations by createdAt)
+- **Influence analysis**: "What influenced this decision when it was made?" (find relations created before)
+- **Pattern recognition**: "Recent connections show shift toward X approach" (recent createdAt values)
+
+**Practical Examples:**
+```javascript
+// Critical architectural influence
+{
+  "relationType": "INFLUENCES",
+  "strength": 0.9,
+  "context": ["architecture", "programming"],
+  "source": "agent"
+}
+
+// User-requested connection between domains  
+{
+  "relationType": "INSPIRES",
+  "strength": 0.6,
+  "context": ["creative", "problem-solving"],
+  "source": "user"
+}
+
+// Weak exploratory connection
+{
+  "relationType": "RELATES_TO", 
+  "strength": 0.3,
+  "context": ["research"],
+  "source": "agent"
 }
 ```
 
@@ -568,6 +715,8 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **Graph context**: 2-level relationship traversal included in responses
 - **Metadata support**: Flexible JSON structure with full-text search
 - **AI-optimized**: Minimal response size with essential context
+- **Intelligence-first relationships**: Rich metadata enables context-aware, temporal, and strength-based relationship intelligence
+- **Agent guidance integration**: Tool descriptions and response formats guide optimal metadata usage patterns
 
 
 ## 8. Critical Implementation Requirements
@@ -596,7 +745,48 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
   - Include `createdAt` timestamp in observation data when retrieving memories
   - Maintain chronological consistency across all memory retrieval operations
 
-### 8.4 Structural Memory Guidance (v2.0.6)
+### 8.4 Observation ID Requirements
+- **REQUIREMENT**: All observation objects in responses MUST include the `id` field (18-char BASE85 identifier)
+- **IMPLEMENTATION**: 
+  - Include observation IDs in all memory retrieval, search, and find operations
+  - Use observation IDs for deletion operations (content-based deletion NOT supported)
+  - Maintain observation ID consistency across all response formats
+
+### 8.5 Memory Type Search Requirements  
+- **REQUIREMENT**: Type-based filtering MUST be available through `memory_search` tool via `memoryTypes` parameter
+- **IMPLEMENTATION**:
+  - `memoryTypes` parameter in `memory_search` for efficient type-based filtering
+  - Support for multiple memory types in single query
+  - Full compatibility with limit, graph context, and other search parameters
+  - Return full memory objects with observation IDs included
+
+### 8.6 Enhanced Relationship Metadata Requirements
+- **REQUIREMENT**: All relationship types MUST include comprehensive metadata for intelligent context understanding
+- **IMPLEMENTATION**: 
+  - `strength` field MUST be validated as 0.0-1.0 range with default 0.5
+  - `context` field MUST be auto-inferred when not explicitly provided by agent
+  - `source` field MUST accurately reflect relationship origin ("agent", "user", "system")
+  - `createdAt` field MUST be system-generated ISO timestamp at creation time
+- **VALIDATION**: Reject relationships with invalid strength values or malformed context arrays
+- **BACKWARDS COMPATIBILITY**: Existing relationships without metadata get default values during migration
+
+### 8.7 Relationship Source Attribution Standards
+- **REQUIREMENT**: Source field MUST accurately distinguish between agent analysis, user requests, and system automation
+- **IMPLEMENTATION**:
+  - "agent": Default for agent-initiated relationships based on content analysis
+  - "user": When agent explicitly indicates user requested the connection
+  - "system": Automatic relationships (tags, observations, future similarity detection)
+- **CONSISTENCY**: Source determination logic MUST be applied uniformly across all relationship creation paths
+
+### 8.8 Context Inference Intelligence  
+- **REQUIREMENT**: When agent does not provide explicit context, system MUST intelligently infer from memory types
+- **IMPLEMENTATION**: 
+  - Context inference MUST use predefined memory type mappings
+  - Multiple contexts allowed when memories span domains
+  - Empty context array only when inference impossible
+- **EXTENSIBILITY**: Context inference logic MUST be easily expandable for new memory types
+
+### 8.9 Structural Memory Guidance (v2.0.6)
 - **REQUIREMENT**: All MCP tool descriptions MUST guide users toward architectural discipline in memory structure
 - **PATTERN**: Metadata for structural overviews (schemas, hierarchies, patterns), observations for complete functional modules
 - **ANTI-FRAGMENTATION**: Each observation should be self-contained and actionable, not sentence fragments
@@ -606,7 +796,7 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
   - Encourage metadata/observations separation for maintainable knowledge architecture
   - Guide users toward complete functional modules rather than scattered fragments
 
-### 8.5 Data Integrity Standards
+### 8.10 Data Integrity Standards
 - **Timestamps**: All timestamp fields MUST be consistent and properly maintained during CRUD operations
 - **Relationship Consistency**: Related objects MUST accurately represent the database state
 - **Order Preservation**: Collections with temporal semantics MUST maintain chronological order
@@ -614,3 +804,79 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **Response Metadata**: All tool responses MUST include _meta.database field showing which database was used
 
 These requirements are CRITICAL for user experience and data integrity. Any deviation from these standards constitutes a functional bug that must be addressed immediately.
+
+## 9. Strategic Relationship Intelligence Guidelines
+
+### 9.1 Agent Decision Framework for Relationship Creation
+
+**ALWAYS Consider These Questions Before Creating Relationships:**
+
+1. **Strength Assessment**:
+   - "How significantly does Memory A influence Memory B?"
+   - "Is this a core dependency (0.8+) or loose association (0.3-)?"
+   - "Would removing this connection fundamentally change understanding?"
+
+2. **Context Relevance**:
+   - "In which domains does this relationship matter?"
+   - "Should this connection appear when filtering by 'programming' vs 'creative'?"
+   - "Does this span multiple contexts or stay within one domain?"
+
+3. **Source Attribution**:
+   - "Did the user explicitly request this connection?"
+   - "Am I inferring this from content analysis?"
+   - "Is this a pattern I discovered vs user instruction?"
+
+### 9.2 Temporal Intelligence Patterns
+
+**Use Relationship Timestamps For:**
+- **Decision archaeology**: "What information influenced this choice at the time?"
+- **Knowledge evolution**: "How did my understanding of X develop chronologically?"  
+- **Influence tracing**: "Which earlier insights shaped later conclusions?"
+- **Pattern emergence**: "When did this connection between domains first appear?"
+
+### 9.3 Cross-Domain Intelligence Strategy
+
+**Leverage Context Arrays To:**
+- **Bridge disciplines**: Connect programming patterns to writing workflows
+- **Identify transferable insights**: Research methodologies applicable to creative projects
+- **Surface unexpected connections**: Business processes that inform technical architecture
+- **Enable domain filtering**: "Show only programming-related relationships for this memory"
+
+### 9.4 Relationship Quality Optimization
+
+**High-Value Relationship Patterns:**
+- **Strong + Specific Context**: Major influences within clear domain boundaries
+- **Medium + Cross-Context**: Insights that transfer between disciplines  
+- **Temporal Clustering**: Related decisions made within similar timeframes
+- **User-Validated**: Connections explicitly confirmed by user feedback
+
+**Avoid Low-Value Patterns:**
+- **Weak + Generic Context**: Vague connections without clear domain relevance
+- **High Strength + Minimal Evidence**: Overstating relationship importance
+- **Context Explosion**: Adding too many contexts without clear rationale
+- **Temporal Inconsistency**: Recent relationships claiming historical influence
+
+### 9.5 Intelligence Amplification Through Metadata
+
+**Query Strategies Enabled:**
+```cypher
+// Find strongest influences in specific domain
+MATCH (m1)-[r:RELATES_TO]->(m2) 
+WHERE 'programming' IN r.context AND r.strength > 0.7
+ORDER BY r.strength DESC
+
+// Trace knowledge evolution over time  
+MATCH (m1)-[r:RELATES_TO]->(m2)
+WHERE r.relationType = 'INFLUENCES'
+ORDER BY r.createdAt ASC
+
+// Discover cross-domain patterns
+MATCH (m1)-[r:RELATES_TO]->(m2)
+WHERE size(r.context) > 1 AND r.strength > 0.6
+```
+
+**Agent Intelligence Applications:**
+- **Smart Suggestions**: "Based on strong programming relationships, you might also find these writing patterns relevant"
+- **Context Switching**: "When working on creative projects, here are your most valuable cross-domain insights"  
+- **Temporal Context**: "At the time you made Decision X, these were your strongest influences"
+- **Relationship Quality**: "These connections have proven most valuable in similar contexts"

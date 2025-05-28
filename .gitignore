@@ -56,3 +56,5 @@ package-lock.json
 coverage/
 claude_desktop_config.json
 hot-reload.sh
+output.txt
+gdd.md

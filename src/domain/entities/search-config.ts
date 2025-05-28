@@ -34,7 +34,7 @@ export interface RelatedMemory {
   type: string;
   relation: string;
   distance: number;
-  // Enhanced relationship metadata (GDD v2.1.0+)
+  // Enhanced relationship metadata (GDD v2.1.1+)
   strength?: number;      // 0.0-1.0
   context?: string[];     // Domain contexts
   source?: string;        // "agent" | "user" | "system"

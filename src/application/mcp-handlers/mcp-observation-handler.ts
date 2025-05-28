@@ -21,14 +21,45 @@ export class McpObservationHandler {
     const currentDb = this.container.getCurrentDatabase();
     const observationUseCase = this.container.getManageObservationsUseCase();
 
-    const result = await observationUseCase.executeMany(request.operation, request.observations);
+    const results = [];
+    let totalObservationsProcessed = 0;
+    
+    for (const obsRequest of request.observations) {
+      try {
+        // Execute the operation for this memory
+        const result = await observationUseCase.executeMany(request.operation, [obsRequest]);
+        
+        results.push({ 
+          memoryId: obsRequest.memoryId, 
+          status: "success",
+          observations: {
+            requested: obsRequest.contents.length,
+            processed: result.processed
+          }
+        });
+        
+        totalObservationsProcessed += result.processed;
+      } catch (error) {
+        results.push({ 
+          memoryId: obsRequest.memoryId, 
+          status: "failed", 
+          error: error.message 
+        });
+      }
+    }
 
     return {
+      success: true,
+      results,
+      summary: {
+        memories_processed: results.filter(r => r.status === "success").length,
+        memories_failed: results.filter(r => r.status === "failed").length,
+        observations_processed: totalObservationsProcessed
+      },
       _meta: {
         database: currentDb.database,
         operation: request.operation,
-        processed: result.processed,
-        errors: result.errors.length
+        timestamp: new Date().toISOString()
       }
     };
   }

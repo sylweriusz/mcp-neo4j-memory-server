@@ -1,4 +1,4 @@
-# Graph Database Design (GDD) - Version 2.0.11
+# Graph Database Design (GDD) - Version 2.0.12
 
 ## 1. Core Data Model
 
@@ -644,38 +644,88 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 
 ### 7.3 Response Formats
 
-#### Enhanced Search Response
+#### Write Operation Response (v2.0.12)
 ```typescript
+// For memory_manage (create/update/delete)
 {
-  "memories": [
-    {
-      "id": "Bm>xyz123",
-      "name": "Machine Learning Project",
-      "type": "project",
-      "observations": [
-        {
-          "id": "Bm>obs123",  // Observation ID in search results
-          "content": "...",
-          "createdAt": "2025-05-25T10:00:00Z"
-        }
-      ],
-      "tags": ["machine-learning", "tensorflow"],
-      "metadata": { "status": "active" },
-      "related": {
-        "ancestors": [{"id": "...", "name": "...", "relation": "...", "distance": 1}],
-        "descendants": [{"id": "...", "name": "...", "relation": "...", "distance": 1}]
+  "success": true,
+  "results": [
+    { "id": "Bm>abc123", "status": "created" },
+    { "id": "Bm>def456", "status": "created" },
+    { "id": "Bm>ghi789", "status": "failed", "error": "Duplicate name" }
+  ],
+  "summary": {
+    "requested": 3,
+    "succeeded": 2,
+    "failed": 1
+  },
+  "_meta": {
+    "database": "mcp-graph-memory",
+    "operation": "create",
+    "timestamp": "2025-05-28T10:00:00Z"
+  }
+}
+
+// For observation_manage (add/delete)
+{
+  "success": true,
+  "results": [
+    { 
+      "memoryId": "Bm>abc123", 
+      "status": "success",
+      "observations": {
+        "requested": 3,
+        "processed": 3
       }
+    },
+    { 
+      "memoryId": "Bm>def456", 
+      "status": "failed", 
+      "error": "Memory not found" 
     }
   ],
+  "summary": {
+    "memories_processed": 1,
+    "memories_failed": 1,
+    "observations_added": 3
+  },
   "_meta": {
-    "total": 15,
-    "queryTime": 95,
-    "message": "Enhanced search with metadata matching and graph context"
+    "database": "mcp-graph-memory",
+    "operation": "add"
+  }
+}
+
+// For relation_manage (create/delete)
+{
+  "success": true,
+  "results": [
+    { 
+      "fromId": "Bm>abc123", 
+      "toId": "Bm>def456", 
+      "relationType": "INFLUENCES",
+      "status": "created" 
+    },
+    { 
+      "fromId": "Bm>ghi789", 
+      "toId": "Bm>jkl012", 
+      "relationType": "DEPENDS_ON",
+      "status": "failed", 
+      "error": "Target memory not found" 
+    }
+  ],
+  "summary": {
+    "requested": 2,
+    "succeeded": 1,
+    "failed": 1
+  },
+  "_meta": {
+    "database": "mcp-graph-memory",
+    "operation": "create"
   }
 }
 ```
 
-#### Memory Retrieval Response
+#### Enhanced Search Response
 ```typescript
 {
   "memories": [
@@ -807,6 +857,18 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **Order Preservation**: Collections with temporal semantics MUST maintain chronological order
 - **Structural Consistency**: Memory architecture MUST follow metadata/observations separation pattern
 - **Response Metadata**: All tool responses MUST include _meta.database field showing which database was used
+
+### 8.11 Response Optimization Requirements (v2.0.12)
+- **REQUIREMENT**: Write operations (create/update/delete) MUST return minimal confirmation responses with per-item status tracking
+- **RATIONALE**: Context window preservation + precise error tracking for batch operations
+- **IMPLEMENTATION**:
+  - Each item in batch gets individual status: "created", "updated", "deleted", "failed"
+  - Failed items include specific error message
+  - Summary provides aggregate counts for quick assessment
+  - Full memory objects returned ONLY for retrieval operations (search, retrieve)
+  - Embeddings NEVER included in any MCP response
+- **PATTERN**: "Track each item's fate individually, summarize collectively"
+- **ERROR GRANULARITY**: Each failed operation must identify the specific ID and reason for failure
 
 These requirements are CRITICAL for user experience and data integrity. Any deviation from these standards constitutes a functional bug that must be addressed immediately.
 

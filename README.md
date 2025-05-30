@@ -1,4 +1,4 @@
-# MCP Neo4j Knowledge Graph Memory Server v2.1.1
+# MCP Neo4j Knowledge Graph Memory Server v2.1.2
 
 *A Model Context Protocol (MCP) server that provides persistent memory capabilities using Neo4j as the backend. Features structured memory guidance, semantic search, knowledge graphs, and anti-fragmentation architecture.*
 

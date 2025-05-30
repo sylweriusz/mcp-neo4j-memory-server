@@ -401,10 +401,39 @@ CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [
 CREATE VECTOR INDEX IF NOT EXISTS memory_name_vector_idx 
 FOR (m:Memory) ON (m.nameEmbedding)
 OPTIONS {indexConfig: {
-  `vector.dimensions`: 768,
+  `vector.dimensions`: 384,  // Dynamic - auto-detected from configured model
   `vector.similarity_function`: 'cosine'
 }}
 ```
+
+## 5.3 Vector Model Configuration (v2.1.2)
+
+### Model Selection and Management
+- **Default Model**: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions, 50+ languages)
+- **Configuration**: Environment variable `VECTOR_MODEL` for custom model selection
+- **Dimension Detection**: Automatic detection from selected model, no hardcoded values
+- **Memory Management**: Lazy loading with 10-minute idle timeout for RAM optimization
+- **Startup Verification**: Model downloaded and verified during system initialization
+
+### Environment Variables
+```bash
+VECTOR_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  # Model selection (default)
+VECTOR_DIMENSIONS=auto                                                    # Auto-detect from model
+VECTOR_IDLE_TIMEOUT=600000                                               # 10 minutes idle timeout
+VECTOR_PRELOAD=true                                                      # Download on startup (default)
+```
+
+### Supported Models
+- `paraphrase-multilingual-MiniLM-L12-v2` (384D, 50+ languages, ~600MB RAM) - **Default**
+- `all-MiniLM-L6-v2` (384D, English optimized, ~400MB RAM)
+- `multilingual-e5-base` (768D, 100+ languages, ~800MB RAM)
+
+### Performance Characteristics
+- **Memory Usage**: 200-600MB RAM depending on model selection
+- **Idle Optimization**: Model automatically unloaded after 10 minutes of inactivity
+- **Cold Start**: 2-3 seconds for model reload from disk cache
+- **Storage**: Models cached locally after first download (~300-500MB disk space)
+- **Initialization**: Model verified and pre-downloaded during system startup
 
 ## 6. Tag Management System
 

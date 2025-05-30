@@ -16,7 +16,9 @@ export interface EnvironmentConfig {
   };
   vector: {
     modelName: string;
-    dimensions: number;
+    dimensions: number | 'auto';
+    idleTimeout: number;
+    preload: boolean;
   };
 }
 
@@ -52,8 +54,12 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       level: process.env.LOG_LEVEL || 'info',
     },
     vector: {
-      modelName: process.env.VECTOR_MODEL || 'sentence-transformers/multilingual-e5-base', // 'sentence-transformers/all-MiniLM-L6-v2',
-      dimensions: parseInt(process.env.VECTOR_DIMENSIONS || '768', 10),
+      modelName: process.env.VECTOR_MODEL || 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+      dimensions: process.env.VECTOR_DIMENSIONS ? 
+        (process.env.VECTOR_DIMENSIONS === 'auto' ? 'auto' : parseInt(process.env.VECTOR_DIMENSIONS, 10)) 
+        : 'auto',
+      idleTimeout: parseInt(process.env.VECTOR_IDLE_TIMEOUT || '600000', 10), // 10 minutes
+      preload: process.env.VECTOR_PRELOAD !== 'false' // Default true
     },
   };
 }

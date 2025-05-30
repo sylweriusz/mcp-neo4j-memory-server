@@ -74,24 +74,65 @@ export class IndexManager {
 
   /**
    * Ensure vector indexes exist (Enterprise Edition)
-   * GDD Requirement: Vector index for semantic search
+   * GDD Requirement: Vector index for semantic search with dynamic dimensions
    */
   async ensureVectorIndexes(): Promise<void> {
     try {
-      // Try creating vector index for Enterprise Edition
+      // Import here to avoid circular dependencies
+      const { SmartEmbeddingManager } = await import('../services/smart-embedding-manager');
+      const embeddingManager = new SmartEmbeddingManager();
+      
+      // Get dimensions dynamically from the configured model
+      const dimensions = await embeddingManager.getModelDimensions();
+      
       const vectorIndex = `
         CREATE VECTOR INDEX memory_name_vector_idx IF NOT EXISTS 
         FOR (m:Memory) ON (m.nameEmbedding)
         OPTIONS {indexConfig: {
-          \`vector.dimensions\`: 768,
+          \`vector.dimensions\`: ${dimensions},
           \`vector.similarity_function\`: 'cosine'
         }}
       `;
       await this.session.run(vectorIndex);
-      console.error("[IndexManager] ✅ Vector index created successfully");
+      console.error(`[IndexManager] ✅ Vector index created with ${dimensions} dimensions`);
     } catch (error) {
       console.warn("[IndexManager] ⚠️  Vector index creation failed (likely Community Edition):", error.message);
       // This is expected for Community Edition - vector search will use in-memory calculation
+    }
+  }
+
+  /**
+   * Check if required schema elements exist
+   * Uses Memory.id constraint as key indicator of schema initialization
+   */
+  async hasRequiredSchema(): Promise<boolean> {
+    try {
+      // Check for critical Memory.id unique constraint
+      const constraintResult = await this.session.run(`
+        SHOW CONSTRAINTS 
+        WHERE entityType = "NODE" 
+        AND labelsOrTypes = ["Memory"] 
+        AND properties = ["id"]
+        AND type = "UNIQUENESS"
+      `);
+      
+      const hasMemoryConstraint = constraintResult.records.length > 0;
+      
+      // Check for basic memory_type index
+      const indexResult = await this.session.run(`
+        SHOW INDEXES 
+        WHERE name = "memory_type_idx"
+      `);
+      
+      const hasMemoryTypeIndex = indexResult.records.length > 0;
+      
+      const schemaExists = hasMemoryConstraint && hasMemoryTypeIndex;
+      console.error(`[IndexManager] Schema check: Memory constraint=${hasMemoryConstraint}, Type index=${hasMemoryTypeIndex}`);
+      
+      return schemaExists;
+    } catch (error) {
+      console.warn(`[IndexManager] Schema check failed, assuming missing: ${error.message}`);
+      return false; // Assume schema is missing if we can't check
     }
   }
 

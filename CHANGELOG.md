@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2025-05-30
+
+### Enhanced
+- **Vector Model Configuration**: Complete configurable embedding model system with lazy loading and preload options
+- **Dynamic Model Support**: Auto-detection of embedding dimensions from configured model
+- **Memory Management**: Smart embedding manager with 10-minute idle timeout for RAM optimization
+- **Startup Verification**: Model downloaded and verified during system initialization
+
+### Added
+- **Environment Variables**: Full configuration via `VECTOR_MODEL`, `VECTOR_DIMENSIONS`, `VECTOR_IDLE_TIMEOUT`, `VECTOR_PRELOAD`
+- **Model Selection**: Support for paraphrase-multilingual-MiniLM-L12-v2 (default), multilingual-e5-base, and other sentence-transformers models
+- **Smart Loading**: Lazy loading with background preload option for immediate availability
+- **Dynamic Indexing**: Vector indexes created with auto-detected dimensions from selected model
+
+### Performance Improvements
+- **Memory Usage**: 200-600MB RAM depending on model selection with automatic cleanup
+- **Cold Start**: 2-3 seconds for model reload from disk cache after idle timeout
+- **Storage Optimization**: Models cached locally after first download (~300-500MB disk space)
+- **Initialization Speed**: Model verified and pre-downloaded during system startup
+
+### Technical Details
+- **Default Model**: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions, 50+ languages)
+- **Configuration**: Environment variable `VECTOR_MODEL` for custom model selection
+- **Dimension Detection**: Automatic detection from selected model, no hardcoded values
+- **Memory Management**: Lazy loading with 10-minute idle timeout for RAM optimization
+- **Startup Verification**: Model downloaded and verified during system initialization
+
 ## [2.1.1] - 2025-05-28
 
 ### Updated
@@ -44,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cypher parameters**: Fixed parameter binding issues with special characters
 
 ### Technical Details
-- **BASE85 charset**: `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%()*+,-./:;=?@_{|}~`
+- **BASE85 charset**: `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%()*+,-./:;=?@_{|}~<`
 - **Entropy maintained**: 85^18 ≈ 2.7×10^34 combinations (vs 91^17 ≈ 4.7×10^33)
 - **Backward compatibility**: ID detection supports both 17-char BASE91 and 18-char BASE85 formats
 - **Compression ratio**: 18/26 = 69% of original ULID size (31% space saved)

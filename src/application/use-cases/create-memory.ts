@@ -31,7 +31,7 @@ export class CreateMemoryUseCase {
     // Generate name embedding for semantic search
     const nameEmbedding = await this.embeddingService.calculateEmbedding(request.name);
     
-    // Extract tags automatically (GDD v2.1.1 requirement)
+    // Extract tags automatically (GDD v2.1.2 requirement)
     const extractedTags = await this.tagExtractionService.extractTags(
       request.name,
       request.observations || []

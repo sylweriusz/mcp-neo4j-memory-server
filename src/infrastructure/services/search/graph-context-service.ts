@@ -35,7 +35,8 @@ export class GraphContextService {
         context: CASE WHEN size(rel1) > 0 THEN rel1[0].context ELSE null END,
         source: CASE WHEN size(rel1) > 0 THEN rel1[0].source ELSE null END,
         createdAt: CASE WHEN size(rel1) > 0 THEN rel1[0].createdAt ELSE null END
-      })[0..${this.config.maxRelatedItems}] as rawAncestors
+      }) as allAncestors
+      WITH m, allAncestors[0..${this.config.maxRelatedItems}] as rawAncestors
       WITH m, [rel IN rawAncestors WHERE rel.id IS NOT NULL] as ancestors
 
       // Descendant relationships (pointing FROM this memory)
@@ -51,19 +52,41 @@ export class GraphContextService {
         context: CASE WHEN size(rel2) > 0 THEN rel2[0].context ELSE null END,
         source: CASE WHEN size(rel2) > 0 THEN rel2[0].source ELSE null END,
         createdAt: CASE WHEN size(rel2) > 0 THEN rel2[0].createdAt ELSE null END
-      })[0..${this.config.maxRelatedItems}] as rawDescendants
+      }) as allDescendants
+      WITH m, ancestors, allDescendants[0..${this.config.maxRelatedItems}] as rawDescendants
       WITH m, ancestors, [rel IN rawDescendants WHERE rel.id IS NOT NULL] as descendants
 
       RETURN m.id as memoryId, ancestors, descendants
     `;
 
-    const result = await this.session.run(cypher, { memoryIds });
-    const contextMap = new Map();
+    try {
+      const result = await this.session.run(cypher, { memoryIds });
+      const contextMap = new Map();
 
-    for (const record of result.records) {
+      for (const record of result.records) {
       const memoryId = record.get('memoryId');
-      const ancestors = record.get('ancestors') || [];
-      const descendants = record.get('descendants') || [];
+      let ancestors = record.get('ancestors') || [];
+      let descendants = record.get('descendants') || [];
+
+      // Convert Neo4j Integer objects to numbers for distance property
+      ancestors = ancestors.map((ancestor: any) => ({
+        ...ancestor,
+        distance: ancestor.distance && typeof ancestor.distance === 'object' && ancestor.distance.toNumber 
+          ? ancestor.distance.toNumber() 
+          : ancestor.distance
+      }));
+
+      descendants = descendants.map((descendant: any) => ({
+        ...descendant,
+        distance: descendant.distance && typeof descendant.distance === 'object' && descendant.distance.toNumber 
+          ? descendant.distance.toNumber() 
+          : descendant.distance
+      }));
+
+      // Apply defensive limits at application layer
+      // This ensures limits are enforced even if Cypher query fails to do so
+      ancestors = ancestors.filter((ancestor: any) => ancestor && ancestor.id).slice(0, this.config.maxRelatedItems);
+      descendants = descendants.filter((descendant: any) => descendant && descendant.id).slice(0, this.config.maxRelatedItems);
 
       // Only include if we have actual relationships
       if (ancestors.length > 0 || descendants.length > 0) {
@@ -75,6 +98,11 @@ export class GraphContextService {
     }
 
     return contextMap;
+    } catch (error) {
+      // Graceful degradation on database failures
+      console.warn('Graph context retrieval failed:', error);
+      return new Map();
+    }
   }
 
   async searchWildcardWithContext(
@@ -146,21 +174,40 @@ export class GraphContextService {
 
     const actualLimit = Math.floor(limit); // Ensure integer for Neo4j
     
-    const result = await this.session.run(cypher, {
-      memoryTypes,
-      limit: neo4j.int(actualLimit)
-    });
+    try {
+      const result = await this.session.run(cypher, {
+        memoryTypes,
+        limit: neo4j.int(actualLimit)
+      });
 
-    return result.records.map(record => ({
+      return result.records.map(record => ({
       id: record.get('id'),
       name: record.get('name'),
       type: record.get('type'),
-      metadata: JSON.parse(record.get('metadata') || '{}'),
+      metadata: (() => {
+        try {
+          const metadataStr = record.get('metadata');
+          if (!metadataStr || 
+              typeof metadataStr !== 'string' || 
+              metadataStr.trim() === '') {
+            return {};
+          }
+          return JSON.parse(metadataStr);
+        } catch (error) {
+          console.warn(`Failed to parse metadata for ${record.get('id')}:`, error);
+          return {};
+        }
+      })(),
       embedding: record.get('embedding'),
       observationObjects: record.get('observationObjects'),
       tags: record.get('tags') || [],
       ancestors: record.get('ancestors') || [],
       descendants: record.get('descendants') || []
     }));
+    } catch (error) {
+      // Return empty array on wildcard search failures for graceful degradation
+      console.warn('Wildcard search failed:', error);
+      return [];
+    }
   }
 }

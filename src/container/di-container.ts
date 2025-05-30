@@ -153,11 +153,30 @@ export class DIContainer {
   async initializeDatabase(): Promise<void> {
     const session = this.sessionFactory.createSession();
     this.indexManager = new IndexManager(session);
-    await this.indexManager.initializeSchema();
-    await session.close();
+    
+    try {
+      // Pre-download embedding model to ensure it's available
+      console.error("[DIContainer] Verifying embedding model availability...");
+      await this.embeddingService.preloadModel();
+      console.error("[DIContainer] Embedding model verified and ready");
+      
+      const hasSchema = await this.indexManager.hasRequiredSchema();
+      if (!hasSchema) {
+        console.error("[DIContainer] Schema missing, initializing...");
+        await this.indexManager.initializeSchema();
+      } else {
+        console.error("[DIContainer] Schema verified, skipping initialization");
+      }
+    } finally {
+      await session.close();
+    }
   }
 
   async close(): Promise<void> {
+    // Clean shutdown sequence
+    if (this.embeddingService && typeof this.embeddingService.shutdown === 'function') {
+      await this.embeddingService.shutdown();
+    }
     await this.driverManager.close();
   }
 }

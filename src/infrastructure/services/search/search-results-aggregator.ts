@@ -27,9 +27,9 @@ export class SearchResultsAggregator {
       return neo4j.int(value.low).toNumber();
     }
     
-    // If it's already a number, return as-is
+    // If it's already a number, return as-is (but handle NaN)
     if (typeof value === 'number') {
-      return value;
+      return isNaN(value) ? 0 : value;
     }
     
     // Fallback: try to parse as number
@@ -135,7 +135,7 @@ export class SearchResultsAggregator {
     return observationObjects
       .filter(obs => obs && obs.content)
       .map(obs => ({
-        id: obs.id,  // BUG FIX: Include observation ID as required by GDD v2.1.1 section 8.4
+        id: obs.id,  // BUG FIX: Include observation ID as required by GDD v2.1.2 section 8.4
         content: obs.content,
         createdAt: obs.createdAt || new Date().toISOString()
       }))

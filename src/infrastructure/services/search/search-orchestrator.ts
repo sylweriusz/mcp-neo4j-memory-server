@@ -99,7 +99,10 @@ export class SearchOrchestrator {
       memoryTypes
     );
 
-    return this.aggregator.formatSearchResults(rawResults, includeGraphContext);
+    const formattedResults = this.aggregator.formatSearchResults(rawResults, includeGraphContext);
+    
+    // CRITICAL: Final limit enforcement - ensure we never exceed requested limit
+    return formattedResults.slice(0, limit);
   }
 
   private async executeSearchPipeline(
@@ -193,15 +196,43 @@ export class SearchOrchestrator {
       id: record.get('id'),
       name: record.get('name'),
       type: record.get('type'),
-      observations: record.get('observations').filter((obs: any) => obs.content),
-      tags: record.get('tags').filter((tag: string) => tag),
-      metadata: JSON.parse(record.get('metadata') || '{}')
+      observations: (() => {
+        const obs = record.get('observations');
+        return Array.isArray(obs) ? obs.filter((obs: any) => obs && obs.content) : [];
+      })(),
+      tags: (() => {
+        const tags = record.get('tags');
+        return Array.isArray(tags) ? tags.filter((tag: string) => tag) : [];
+      })(),
+      metadata: (() => {
+        try {
+          const metadataStr = record.get('metadata');
+          return metadataStr ? JSON.parse(metadataStr) : {};
+        } catch (error) {
+          console.warn(`Failed to parse metadata for ${record.get('id')}:`, error);
+          return {};
+        }
+      })()
     }));
   }
 
   private async enrichWithGraphContext(results: EnhancedSearchResult[]): Promise<void> {
-    const memoryIds = results.map(r => r.id);
+    if (!results || results.length === 0) {
+      return;
+    }
+    
+    const memoryIds = results.map(r => r.id).filter(id => id);
+    if (memoryIds.length === 0) {
+      return;
+    }
+    
     const contextMap = await this.graphService.getGraphContext(memoryIds);
+    
+    // Ensure contextMap exists before proceeding
+    if (!contextMap) {
+      console.warn('Graph context service returned null/undefined contextMap');
+      return;
+    }
     
     for (const result of results) {
       const context = contextMap.get(result.id);

@@ -14,7 +14,7 @@ export class SearchMemoriesUseCase {
       throw new Error('Search query is required');
     }
 
-    if (request.limit && request.limit <= 0) {
+    if (request.limit !== undefined && request.limit <= 0) {
       throw new Error('Search limit must be positive');
     }
 

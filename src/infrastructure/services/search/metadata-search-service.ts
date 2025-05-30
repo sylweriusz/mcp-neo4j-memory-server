@@ -50,7 +50,9 @@ export class MetadataSearchService {
       limit: neo4j.int(limit)
     });
 
-    return result.records.map(record => record.get('id'));
+    return result.records
+      .map(record => record.get('id'))
+      .filter(id => id != null); // Filter out null and undefined values
   }
 
   private async findFulltextMatches(
@@ -82,7 +84,9 @@ export class MetadataSearchService {
         limit: neo4j.int(limit)
       });
 
-      return result.records.map(record => record.get('id'));
+      return result.records
+      .map(record => record.get('id'))
+      .filter(id => id != null); // Filter out null and undefined values
     } catch (error) {
       // Fallback to CONTAINS if fulltext index unavailable
       console.warn('Fulltext index unavailable, using fallback search');
@@ -95,31 +99,38 @@ export class MetadataSearchService {
     limit: number,
     memoryTypes?: string[]
   ): Promise<string[]> {
-    const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
-    
-    if (queryWords.length === 0) return [];
+    try {
+      const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+      
+      if (queryWords.length === 0) return [];
 
-    let whereClause = 'WHERE ANY(word IN $queryWords WHERE t.name CONTAINS word)';
-    
-    if (memoryTypes && memoryTypes.length > 0) {
-      whereClause += ' AND m.memoryType IN $memoryTypes';
+      let whereClause = 'WHERE ANY(word IN $queryWords WHERE t.name CONTAINS word)';
+      
+      if (memoryTypes && memoryTypes.length > 0) {
+        whereClause += ' AND m.memoryType IN $memoryTypes';
+      }
+
+      const cypher = `
+        MATCH (m:Memory)-[:HAS_TAG]->(t:Tag)
+        ${whereClause}
+        WITH DISTINCT m
+        RETURN m.id as id
+        ORDER BY m.name
+        LIMIT $limit
+      `;
+
+      const result = await this.session.run(cypher, { 
+        queryWords,
+        memoryTypes,
+        limit: neo4j.int(limit)
+      });
+
+      return result.records
+        .map(record => record.get('id'))
+        .filter(id => id != null); // Filter out null and undefined values
+    } catch (error) {
+      console.warn(`Tag search failed: ${error}`);
+      return []; // Return empty array on failure
     }
-
-    const cypher = `
-      MATCH (m:Memory)-[:HAS_TAG]->(t:Tag)
-      ${whereClause}
-      WITH DISTINCT m
-      RETURN m.id as id
-      ORDER BY m.name
-      LIMIT $limit
-    `;
-
-    const result = await this.session.run(cypher, { 
-      queryWords,
-      memoryTypes,
-      limit: neo4j.int(limit)
-    });
-
-    return result.records.map(record => record.get('id'));
   }
 }

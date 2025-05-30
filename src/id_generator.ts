@@ -3,7 +3,7 @@ import { ulid } from 'ulid';
 /**
  * Character sets for base conversion
  * BASE85 provides optimal compression while avoiding problematic serialization characters
- * Removed: \ < > [ ] | ^ (7 most dangerous characters from BASE91)
+ * Removed: \ > [ ] | ^ (6 most dangerous characters from BASE91)
  */
 const BASE85_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;=?@_{}~<';
 

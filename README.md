@@ -150,6 +150,25 @@ Add to `claude_desktop_config.json`:
   }
 }
 ```
+
+### Vector Model Configuration
+
+Configure the embedding model for semantic search:
+
+```bash
+# In Claude Desktop settings or .env file:
+VECTOR_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  # Default model
+VECTOR_DIMENSIONS=auto                                                    # Auto-detect dimensions
+VECTOR_IDLE_TIMEOUT=600000                                               # 10 minutes idle timeout
+VECTOR_PRELOAD=true                                                      # Download on startup
+```
+
+**Available Models:**
+- `paraphrase-multilingual-MiniLM-L12-v2` - Multilingual balanced (384D, ~600MB RAM) - **Default**
+- `all-MiniLM-L6-v2` - English optimized (384D, ~400MB RAM)
+- `multilingual-e5-base` - High quality (768D, ~800MB RAM)
+
+The model will be automatically downloaded and cached locally on first use (~300-500MB disk space).
 ## Neo4j instalation
 
 [How to install NEO4j](README.NEO4J.md)

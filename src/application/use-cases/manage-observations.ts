@@ -30,7 +30,7 @@ export class ManageObservationsUseCase {
       request.contents
     );
 
-    // BUG #2 FIX: Re-extract tags when observations are added (GDD v2.1.1 requirement)
+    // BUG #2 FIX: Re-extract tags when observations are added (GDD v2.1.2 requirement)
     if (this.tagExtractionService) {
       try {
         console.error(`[DEBUG] Starting tag re-extraction for memory ${request.memoryId}`);
@@ -51,18 +51,18 @@ export class ManageObservationsUseCase {
             updatedMemory.tags || [],
             true  // Signal that we're adding new observations
           );
-          console.error(`[DEBUG] Extracted tags: ${newTags.join(', ')}`);
+          console.error(`[DEBUG] Extracted tags: ${(newTags || []).join(', ')}`);
           console.error(`[DEBUG] Current tags: ${(updatedMemory.tags || []).join(', ')}`);
 
           // Update memory with new tags if they changed
-          const newTagsSorted = JSON.stringify(newTags.sort());
+          const newTagsSorted = JSON.stringify((newTags || []).sort());
           const currentTagsSorted = JSON.stringify((updatedMemory.tags || []).sort());
           const tagComparison = newTagsSorted !== currentTagsSorted;
           console.error(`[DEBUG] New tags sorted: ${newTagsSorted}`);
           console.error(`[DEBUG] Current tags sorted: ${currentTagsSorted}`);
-          console.error(`[DEBUG] Tags changed: ${tagComparison}, newTags.length: ${newTags.length}`);
+          console.error(`[DEBUG] Tags changed: ${tagComparison}, newTags.length: ${(newTags || []).length}`);
           
-          if (newTags.length > 0 && tagComparison) {
+          if ((newTags || []).length > 0 && tagComparison) {
             console.error(`[DEBUG] Updating memory with new tags`);
             await this.memoryRepository.update({
               ...updatedMemory,

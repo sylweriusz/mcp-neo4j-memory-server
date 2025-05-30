@@ -26,6 +26,16 @@ export class CleanDatabaseManager {
       // Get current database state
       const currentDatabase = this.driverManager.getCurrentDatabase().database;
 
+      // GREYPLAN Optimization: If staying in same database, check schema and initialize only if needed
+      if (currentDatabase === databaseName) {
+        await this.ensureSchemaExists();
+        return {
+          previousDatabase: currentDatabase,
+          currentDatabase: databaseName,
+          created: false
+        };
+      }
+
       // Check if database exists
       const exists = await this.databaseExists(databaseName);
       
@@ -61,6 +71,27 @@ export class CleanDatabaseManager {
     const indexManager = new IndexManager(userSession);
     await indexManager.initializeSchema();
     await userSession.close();
+  }
+
+  /**
+   * Check if schema exists and initialize only if needed
+   * GREYPLAN optimization: avoid unnecessary work
+   */
+  private async ensureSchemaExists(): Promise<void> {
+    const userSession = this.sessionFactory.createSession();
+    const indexManager = new IndexManager(userSession);
+    
+    try {
+      const hasSchema = await indexManager.hasRequiredSchema();
+      if (!hasSchema) {
+        console.error("[CleanDatabaseManager] Schema missing, initializing...");
+        await indexManager.initializeSchema();
+      } else {
+        console.error("[CleanDatabaseManager] Schema verified, skipping initialization");
+      }
+    } finally {
+      await userSession.close();
+    }
   }
 
   private async databaseExists(databaseName: string): Promise<boolean> {

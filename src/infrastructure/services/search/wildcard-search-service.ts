@@ -13,7 +13,7 @@ export class WildcardSearchService {
 
   /**
    * Execute wildcard search with graph context
-   * GDD v2.2.0: Bypass semantic search for performance
+   * GDD v2.3.1: Bypass semantic search for performance
    */
   async search(
     limit: number,

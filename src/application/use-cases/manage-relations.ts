@@ -1,7 +1,7 @@
 /**
  * Manage Relations Use Case
  * Clean Architecture Application Layer
- * BUG #3 FIX: Enhanced relationship metadata support (GDD v2.1.2+)
+ * BUG #3 FIX: Enhanced relationship metadata support (GDD v2.3.1+)
  */
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';

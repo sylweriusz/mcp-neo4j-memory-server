@@ -19,7 +19,7 @@ import { MemoryObject } from "./types";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server",
-  version: "2.1.3"  // SauronEye Fix: Enhanced relationship metadata + search optimization
+  version: "2.3.1"  // GDD v2.3.1: Reality-based index cleanup + comprehensive audit compliance
 });
 
 // Lazy initialization - only connect when tools are actually called

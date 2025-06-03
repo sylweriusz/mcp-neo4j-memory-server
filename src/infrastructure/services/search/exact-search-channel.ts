@@ -1,7 +1,7 @@
 /**
  * Exact Search Channel - Truth-First Architecture  
  * Single responsibility: Case-insensitive exact matching
- * Performance target: <100ms (GDD v2.2.0)
+ * Performance target: <100ms (GDD v2.3.1)
  * GDD v2.3.1: FIXED to use actual FULLTEXT indexes instead of bypassing them
  */
 

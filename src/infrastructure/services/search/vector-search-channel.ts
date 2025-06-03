@@ -1,7 +1,7 @@
 /**
  * Vector Search Channel - Semantic Similarity Engine (ZERO-FALLBACK CORRECTED)
  * Single responsibility: Vector similarity operations using Neo4j GDS
- * Performance target: <500ms (GDD v2.2.0)
+ * Performance target: <500ms (GDD v2.3.1)
  * 
  * CORRECTED IMPLEMENTATION: GDS is REQUIRED, not optional
  * ZERO-FALLBACK POLICY: If GDS fails, search fails. Period.

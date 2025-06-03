@@ -7,7 +7,10 @@
 import { Session } from 'neo4j-driver';
 
 export class IndexManager {
-  constructor(private session: Session) {}
+  constructor(
+    private session: Session,
+    private vectorDimensions?: number
+  ) {}
 
   /**
    * MENTAT DISCIPLINE: Zero-fallback system database validation
@@ -143,21 +146,19 @@ export class IndexManager {
   async ensureVectorIndexes(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
     await this.validateUserDatabase();
+    
+    // Skip vector index creation if dimensions not provided
+    if (!this.vectorDimensions) {
+      return;
+    }
+    
     try {
-      // FIXED: Import DIContainer to use the singleton embedding service
-      const { DIContainer } = await import('../../container/di-container');
-      const container = DIContainer.getInstance();
-      const embeddingService = container.getEmbeddingService();
-      
-      // Get dimensions from the same instance used throughout the system
-      const dimensions = await embeddingService.getModelDimensions();
+      const dimensions = this.vectorDimensions;
       
       // CRITICAL VALIDATION: Ensure dimensions are valid before creating indexes
       if (!dimensions || dimensions <= 0) {
         throw new Error(`INVALID VECTOR DIMENSIONS: ${dimensions}. Model may not be loaded properly. Check embedding service configuration.`);
       }
-      
-      //console.info(`[IndexManager] Creating vector indexes with dimensions: ${dimensions}`);
       
       // VERIFIED USAGE: gds.similarity.cosine(m.nameEmbedding, $queryVector)
       const memoryVectorIndex = `

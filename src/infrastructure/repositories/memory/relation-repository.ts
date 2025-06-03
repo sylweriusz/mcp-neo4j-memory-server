@@ -29,7 +29,7 @@ export class RelationRepository {
   }
 
   /**
-   * Create enhanced relation with full metadata (GDD v2.1.2+)
+   * Create enhanced relation with full metadata (GDD v2.3.1+)
    */
   async createEnhancedRelation(session: Session, request: EnhancedRelationRequest): Promise<void> {
     await session.run(`
@@ -53,55 +53,4 @@ export class RelationRepository {
     );
   }
 
-  /**
-   * Delete all relations for memory (used during memory deletion)
-   */
-  async deleteAllRelationsForMemory(session: Session, memoryId: string): Promise<void> {
-    // Delete outgoing relations
-    await session.run(`
-      MATCH (m:Memory {id: $memoryId})-[r:RELATES_TO]-()
-      DELETE r`,
-      { memoryId }
-    );
-    
-    // Delete incoming relations  
-    await session.run(`
-      MATCH ()-[r:RELATES_TO]->(m:Memory {id: $memoryId})
-      DELETE r`,
-      { memoryId }
-    );
-  }
-
-  /**
-   * Check if relation exists
-   */
-  async relationExists(session: Session, fromId: string, toId: string, relationType: string): Promise<boolean> {
-    const result = await session.run(`
-      MATCH (from:Memory {id: $fromId})-[r:RELATES_TO {relationType: $relationType}]->(to:Memory {id: $toId})
-      RETURN count(r) > 0 as exists`,
-      { fromId, toId, relationType }
-    );
-    
-    return Boolean(result.records[0]?.get('exists'));
-  }
-
-  /**
-   * Get relation count for memory (for debugging/monitoring)
-   */
-  async getRelationCount(session: Session, memoryId: string): Promise<{ incoming: number; outgoing: number }> {
-    const result = await session.run(`
-      MATCH (m:Memory {id: $memoryId})
-      OPTIONAL MATCH (m)-[outgoing:RELATES_TO]->()
-      OPTIONAL MATCH ()-[incoming:RELATES_TO]->(m)
-      RETURN count(DISTINCT outgoing) as outgoingCount, 
-             count(DISTINCT incoming) as incomingCount`,
-      { memoryId }
-    );
-
-    const record = result.records[0];
-    return {
-      outgoing: record ? record.get('outgoingCount').toNumber() : 0,
-      incoming: record ? record.get('incomingCount').toNumber() : 0
-    };
-  }
 }

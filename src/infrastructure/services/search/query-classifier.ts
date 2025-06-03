@@ -2,7 +2,7 @@
  * Query Classifier - Truth-First Search Architecture
  * Single responsibility: Query intent detection and preprocessing
  * 
- * THE IMPLEMENTOR'S RULE: Build exactly what's specified in GDD v2.2.0
+ * THE IMPLEMENTOR'S RULE: Build exactly what's specified in GDD v2.3.1
  */
 
 export enum QueryType {
@@ -25,7 +25,7 @@ export interface QueryIntent {
 }
 
 /**
- * Query classification according to GDD v2.2.0 specifications
+ * Query classification according to GDD v2.3.1 specifications
  * Zero fallback architecture - explicit classification for all patterns
  */
 export class QueryClassifier {

@@ -1,7 +1,7 @@
 /**
  * Dependency Injection Container - Clean Architecture Complete
  * Single responsibility: Wire up all dependencies with clean database management
- * GDD v2.1.3: Enhanced with session injection for memory operations
+ * GDD v2.3.1: Enhanced with session injection for memory operations
  */
 
 import { Neo4jDriverManager, SessionFactory, IndexManager, CleanDatabaseManager } from '../infrastructure/database';
@@ -143,7 +143,10 @@ export class DIContainer {
     await this.embeddingService.preloadModel();
     
     const session = this.sessionFactory.createSession();
-    this.indexManager = new IndexManager(session);
+    
+    // Get dimensions for IndexManager (fixes circular dependency)
+    const dimensions = await this.embeddingService.getModelDimensions();
+    this.indexManager = new IndexManager(session, dimensions);
     
     try {
       const hasSchema = await this.indexManager.hasRequiredSchema();

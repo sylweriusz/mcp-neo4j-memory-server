@@ -9,7 +9,7 @@ describe('MCP Server Initialization', () => {
   beforeEach(() => {
     server = new McpServer({
       name: "neo4j-memory-server",
-      version: "2.1.1"
+      version: "2.3.1"
     });
     transport = new StdioServerTransport();
   });

@@ -68,7 +68,8 @@ export class CleanDatabaseManager {
 
   private async initializeDatabase(): Promise<void> {
     const userSession = this.sessionFactory.createSession();
-    const indexManager = new IndexManager(userSession);
+    // Pass undefined dimensions - vector indexes will be skipped
+    const indexManager = new IndexManager(userSession, undefined);
     await indexManager.initializeSchema();
     await userSession.close();
   }
@@ -79,7 +80,8 @@ export class CleanDatabaseManager {
    */
   private async ensureSchemaExists(): Promise<void> {
     const userSession = this.sessionFactory.createSession();
-    const indexManager = new IndexManager(userSession);
+    // Pass undefined dimensions - vector indexes will be skipped
+    const indexManager = new IndexManager(userSession, undefined);
     
     try {
       const hasSchema = await indexManager.hasRequiredSchema();

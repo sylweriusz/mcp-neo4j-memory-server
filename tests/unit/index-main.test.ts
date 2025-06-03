@@ -87,7 +87,7 @@ describe('Index.ts - Main Entry Point Coverage', () => {
       // Test server configuration as per the index.ts setup
       const server = new McpServer({
         name: "neo4j-memory-server",
-        version: "2.1.3"
+        version: "2.3.1"
       });
       
       expect(server).toBeDefined();

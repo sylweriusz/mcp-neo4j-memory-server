@@ -1,6 +1,6 @@
 # Neo4j Setup with DozerDB
 
-DozerDB enhances Neo4j Community Edition with enterprise features like multi-database support. This guide shows you how to get it running with the Graph Data Science (GDS) plugin for vector similarity operations.
+DozerDB enhances Neo4j Community Edition with additional features like multi-database support. This guide shows you how to get it running with the Graph Data Science (GDS) plugin for vector similarity operations.
 
 ## Quick Start
 

@@ -11,7 +11,6 @@ export interface UpdateMemoryRequest {
   name?: string;
   memoryType?: string;
   metadata?: Record<string, any>;
-  tags?: string[];
 }
 
 export class UpdateMemoryUseCase {
@@ -29,7 +28,6 @@ export class UpdateMemoryUseCase {
       ...(request.name && { name: request.name }),
       ...(request.memoryType && { memoryType: request.memoryType }),
       ...(request.metadata && { metadata: request.metadata }),
-      ...(request.tags && { tags: request.tags }),
       modifiedAt: new Date().toISOString()
     };
 

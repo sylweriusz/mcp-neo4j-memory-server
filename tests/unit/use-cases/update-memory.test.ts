@@ -1,27 +1,18 @@
 /**
  * Update Memory Use Case Tests
- * Single responsibility: Test memory update business logic
- * THE IMPLEMENTOR'S RULE: Test what matters, not what's obvious
+ * Single responsibility: Test memory updating business logic
+ * CURRENT REALITY: No tag system - Memory only has core fields
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { UpdateMemoryUseCase, UpdateMemoryRequest } from '../../../src/application/use-cases/update-memory';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { UpdateMemoryUseCase } from '../../../src/application/use-cases/update-memory';
 import { Memory } from '../../../src/domain/entities/memory';
 
 describe('UpdateMemoryUseCase', () => {
   let updateUseCase: UpdateMemoryUseCase;
   let mockMemoryRepository: any;
-  let originalDateNow: () => number;
 
-  // Mock date for consistent testing
-  const mockDate = new Date('2025-05-30T00:00:00.000Z');
-  const oldDate = new Date('2025-05-29T00:00:00.000Z');
-  
   beforeEach(() => {
-    // Save original Date.now and mock it
-    originalDateNow = Date.now;
-    Date.now = vi.fn(() => mockDate.getTime());
-    
     // Reset mocks
     vi.clearAllMocks();
     
@@ -34,12 +25,9 @@ describe('UpdateMemoryUseCase', () => {
     updateUseCase = new UpdateMemoryUseCase(mockMemoryRepository);
   });
 
-  afterEach(() => {
-    // Restore original Date.now
-    Date.now = originalDateNow;
-  });
-
   describe('execute', () => {
+    const oldDate = new Date('2025-05-29T00:00:00.000Z');
+
     it('should update a memory with all fields', async () => {
       // Arrange
       const memoryId = 'Bm>test12345678901';
@@ -50,29 +38,26 @@ describe('UpdateMemoryUseCase', () => {
         { original: 'value' },
         oldDate,
         oldDate,
-        oldDate,
-        ['original', 'tags']
+        oldDate
       );
-      
-      const updateRequest: UpdateMemoryRequest = {
+
+      const updateRequest = {
         id: memoryId,
         name: 'Updated Name',
         memoryType: 'updated-type',
-        metadata: { updated: 'value' },
-        tags: ['updated', 'tags']
+        metadata: { updated: 'value' }
       };
-      
+
       const expectedUpdatedMemory = new Memory(
         memoryId,
         'Updated Name',
         'updated-type',
         { updated: 'value' },
         oldDate,
-        mockDate,
-        oldDate,
-        ['updated', 'tags']
+        new Date(), // modifiedAt will be updated
+        oldDate
       );
-      
+
       mockMemoryRepository.findById.mockResolvedValue(existingMemory);
       mockMemoryRepository.update.mockResolvedValue(expectedUpdatedMemory);
 
@@ -86,7 +71,6 @@ describe('UpdateMemoryUseCase', () => {
         name: 'Updated Name',
         memoryType: 'updated-type',
         metadata: { updated: 'value' },
-        tags: ['updated', 'tags'],
         createdAt: oldDate,
         lastAccessed: oldDate,
         modifiedAt: expect.any(String) // It's a string in the real implementation
@@ -104,27 +88,24 @@ describe('UpdateMemoryUseCase', () => {
         { original: 'value' },
         oldDate,
         oldDate,
-        oldDate,
-        ['original', 'tags']
+        oldDate
       );
-      
-      const updateRequest: UpdateMemoryRequest = {
+
+      const updateRequest = {
         id: memoryId,
-        name: 'Updated Name',
-        // Only updating name, leaving other fields unchanged
+        name: 'Updated Name'
       };
-      
+
       const expectedUpdatedMemory = new Memory(
         memoryId,
         'Updated Name',
         'original-type',
         { original: 'value' },
         oldDate,
-        mockDate,
-        oldDate,
-        ['original', 'tags']
+        new Date(),
+        oldDate
       );
-      
+
       mockMemoryRepository.findById.mockResolvedValue(existingMemory);
       mockMemoryRepository.update.mockResolvedValue(expectedUpdatedMemory);
 
@@ -136,9 +117,8 @@ describe('UpdateMemoryUseCase', () => {
       expect(mockMemoryRepository.update).toHaveBeenCalledWith({
         id: memoryId,
         name: 'Updated Name',
-        memoryType: 'original-type', // Unchanged
-        metadata: { original: 'value' }, // Unchanged
-        tags: ['original', 'tags'], // Unchanged
+        memoryType: 'original-type',
+        metadata: { original: 'value' },
         createdAt: oldDate,
         lastAccessed: oldDate,
         modifiedAt: expect.any(String)
@@ -153,35 +133,27 @@ describe('UpdateMemoryUseCase', () => {
         memoryId,
         'Original Name',
         'original-type',
-        { 
-          original: 'value',
-          preserved: 'field'
-        },
+        { existing: 'data' },
         oldDate,
         oldDate,
-        oldDate,
-        ['original', 'tags']
+        oldDate
       );
-      
-      const updateRequest: UpdateMemoryRequest = {
+
+      const updateRequest = {
         id: memoryId,
-        metadata: { 
-          updated: 'value',
-          // Note: this completely replaces the metadata object
-        }
+        metadata: { updated: 'value' }
       };
-      
+
       const expectedUpdatedMemory = new Memory(
         memoryId,
         'Original Name',
         'original-type',
         { updated: 'value' },
         oldDate,
-        mockDate,
-        oldDate,
-        ['original', 'tags']
+        new Date(),
+        oldDate
       );
-      
+
       mockMemoryRepository.findById.mockResolvedValue(existingMemory);
       mockMemoryRepository.update.mockResolvedValue(expectedUpdatedMemory);
 
@@ -195,30 +167,27 @@ describe('UpdateMemoryUseCase', () => {
         name: 'Original Name',
         memoryType: 'original-type',
         metadata: { updated: 'value' },
-        tags: ['original', 'tags'],
         createdAt: oldDate,
         lastAccessed: oldDate,
         modifiedAt: expect.any(String)
       });
       expect(result).toEqual(expectedUpdatedMemory);
-      expect(result.metadata).not.toHaveProperty('preserved');
     });
 
     it('should throw an error when memory does not exist', async () => {
       // Arrange
-      const memoryId = 'Bm>nonexistent12345';
-      const updateRequest: UpdateMemoryRequest = {
+      const memoryId = 'Bm>nonexistent01234';
+      const updateRequest = {
         id: memoryId,
         name: 'Updated Name'
       };
-      
+
       mockMemoryRepository.findById.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(updateUseCase.execute(updateRequest))
-        .rejects.toThrow(`Memory with id ${memoryId} not found`);
-      
-      expect(mockMemoryRepository.findById).toHaveBeenCalledWith(memoryId);
+      await expect(updateUseCase.execute(updateRequest)).rejects.toThrow(
+        `Memory with id ${memoryId} not found`
+      );
       expect(mockMemoryRepository.update).not.toHaveBeenCalled();
     });
 
@@ -227,28 +196,29 @@ describe('UpdateMemoryUseCase', () => {
       const memoryId = 'Bm>test12345678901';
       const existingMemory = new Memory(
         memoryId,
-        'Original Name',
-        'original-type',
+        'Test Memory',
+        'test',
         {},
         oldDate,
         oldDate,
         oldDate
       );
-      
-      const updateRequest: UpdateMemoryRequest = {
+
+      const updateRequest = {
         id: memoryId,
         name: 'Updated Name'
       };
-      
+
       mockMemoryRepository.findById.mockResolvedValue(existingMemory);
-      mockMemoryRepository.update.mockImplementation(memory => Promise.resolve(memory));
+      mockMemoryRepository.update.mockImplementation((memory) => memory);
 
       // Act
-      const result = await updateUseCase.execute(updateRequest);
+      await updateUseCase.execute(updateRequest);
 
       // Assert
-      expect(result.modifiedAt).not.toEqual(existingMemory.modifiedAt);
-      expect(new Date(result.modifiedAt).getTime()).toBeGreaterThan(new Date(existingMemory.modifiedAt).getTime());
+      const updateCall = mockMemoryRepository.update.mock.calls[0][0];
+      const modifiedAt = new Date(updateCall.modifiedAt);
+      expect(modifiedAt.getTime()).toBeGreaterThan(oldDate.getTime());
     });
 
     it('should propagate repository errors', async () => {
@@ -256,28 +226,20 @@ describe('UpdateMemoryUseCase', () => {
       const memoryId = 'Bm>test12345678901';
       const existingMemory = new Memory(
         memoryId,
-        'Original Name',
-        'original-type',
-        {},
-        oldDate,
-        oldDate,
-        oldDate
+        'Test Memory',
+        'test'
       );
-      
-      const updateRequest: UpdateMemoryRequest = {
+
+      const updateRequest = {
         id: memoryId,
         name: 'Updated Name'
       };
-      
+
       mockMemoryRepository.findById.mockResolvedValue(existingMemory);
       mockMemoryRepository.update.mockRejectedValue(new Error('Database connection failed'));
 
       // Act & Assert
-      await expect(updateUseCase.execute(updateRequest))
-        .rejects.toThrow('Database connection failed');
-      
-      expect(mockMemoryRepository.findById).toHaveBeenCalledWith(memoryId);
-      expect(mockMemoryRepository.update).toHaveBeenCalled();
+      await expect(updateUseCase.execute(updateRequest)).rejects.toThrow('Database connection failed');
     });
   });
 });

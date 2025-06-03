@@ -27,8 +27,6 @@ export interface EnvironmentConfig {
  * Fails fast if required environment variables are missing
  */
 export function getEnvironmentConfig(): EnvironmentConfig {
-  // Debug environment variables at runtime
-
   const requiredVars = [
     'NEO4J_URI',
     'NEO4J_USERNAME', 

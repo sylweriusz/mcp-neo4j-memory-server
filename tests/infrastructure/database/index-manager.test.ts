@@ -1,0 +1,294 @@
+/**
+ * IndexManager Test Suite - Infrastructure Foundation
+ * Target: Achieve 75% coverage for database schema management
+ * Scope: Constraint creation, index management, schema validation
+ * Strategy: Mock Neo4j session to test schema operations without database
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { IndexManager } from '../../../src/infrastructure/database/index-manager';
+import { Session } from 'neo4j-driver';
+
+describe('IndexManager - Infrastructure Foundation', () => {
+  let indexManager: IndexManager;
+  let mockSession: Session;
+
+  beforeEach(() => {
+    mockSession = {
+      run: vi.fn()
+    } as any;
+    indexManager = new IndexManager(mockSession);
+  });
+
+  describe('Constraint Management', () => {
+    it('should ensure all required constraints exist', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await indexManager.ensureConstraints();
+
+      expect(mockSession.run).toHaveBeenCalledWith(
+        'CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE'
+      );
+      expect(mockSession.run).toHaveBeenCalledWith(
+        'CREATE CONSTRAINT IF NOT EXISTS FOR (o:Observation) REQUIRE o.id IS UNIQUE'
+      );
+      expect(mockSession.run).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle constraint creation failures', async () => {
+      const constraintError = new Error('Constraint creation failed');
+      (mockSession.run as any).mockRejectedValue(constraintError);
+
+      await expect(indexManager.ensureConstraints())
+        .rejects.toThrow('Constraint creation failed');
+    });
+
+    it('should continue after first constraint succeeds and second fails', async () => {
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ records: [] })
+        .mockRejectedValueOnce(new Error('Second constraint failed'));
+
+      await expect(indexManager.ensureConstraints())
+        .rejects.toThrow('Second constraint failed');
+
+      // Should have attempted both constraints
+      expect(mockSession.run).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('Standard Index Management', () => {
+    it('should ensure all required indexes exist', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await indexManager.ensureIndexes();
+
+      const expectedIndexes = [
+        'CREATE INDEX memory_type_idx IF NOT EXISTS FOR (m:Memory) ON (m.memoryType)',
+        'CREATE INDEX memory_name_idx IF NOT EXISTS FOR (m:Memory) ON (m.name)',
+        'CREATE INDEX memory_accessed_idx IF NOT EXISTS FOR (m:Memory) ON (m.lastAccessed)',
+        'CREATE INDEX relation_type_idx IF NOT EXISTS FOR ()-[r:RELATES_TO]-() ON (r.relationType)'
+      ];
+
+      expectedIndexes.forEach(index => {
+        expect(mockSession.run).toHaveBeenCalledWith(index);
+      });
+      expect(mockSession.run).toHaveBeenCalledTimes(4);
+    });
+
+    it('should handle index creation failures', async () => {
+      const indexError = new Error('Index creation failed');
+      (mockSession.run as any).mockRejectedValue(indexError);
+
+      await expect(indexManager.ensureIndexes())
+        .rejects.toThrow('Index creation failed');
+    });
+
+    it('should continue creating indexes after partial failure', async () => {
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ records: [] })
+        .mockResolvedValueOnce({ records: [] })
+        .mockRejectedValueOnce(new Error('Third index failed'))
+        .mockResolvedValueOnce({ records: [] });
+
+      await expect(indexManager.ensureIndexes())
+        .rejects.toThrow('Third index failed');
+
+      // Should have attempted first 3 indexes before failing
+      expect(mockSession.run).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('Fulltext Index Management', () => {
+    it('should ensure all required fulltext indexes exist', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await indexManager.ensureFulltextIndexes();
+
+      expect(mockSession.run).toHaveBeenCalledWith(
+        'CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]'
+      );
+      expect(mockSession.run).toHaveBeenCalledWith(
+        'CREATE FULLTEXT INDEX observation_content_idx IF NOT EXISTS FOR (o:Observation) ON EACH [o.content]'
+      );
+      expect(mockSession.run).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle fulltext index creation failures', async () => {
+      const fulltextError = new Error('Fulltext index creation failed');
+      (mockSession.run as any).mockRejectedValue(fulltextError);
+
+      await expect(indexManager.ensureFulltextIndexes())
+        .rejects.toThrow('Fulltext index creation failed');
+    });
+  });
+
+  describe('Vector Index Management', () => {
+    it('should attempt to create vector indexes', async () => {
+      // Mock SmartEmbeddingManager
+      const mockEmbeddingManager = {
+        getModelDimensions: vi.fn().mockResolvedValue(384)
+      };
+
+      // Mock the dynamic import
+      vi.doMock('../../../src/infrastructure/services/smart-embedding-manager', () => ({
+        SmartEmbeddingManager: vi.fn().mockImplementation(() => mockEmbeddingManager)
+      }));
+
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await indexManager.ensureVectorIndexes();
+
+      // Should attempt to create both vector indexes
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('CREATE VECTOR INDEX memory_name_vector_idx IF NOT EXISTS')
+      );
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('CREATE VECTOR INDEX observation_embedding_vector_idx IF NOT EXISTS')
+      );
+    });
+
+    it('should handle vector index creation failures gracefully', async () => {
+      const vectorError = new Error('Vector index not supported');
+      (mockSession.run as any).mockRejectedValue(vectorError);
+
+      // Should not throw - vector indexes are optional
+      await expect(indexManager.ensureVectorIndexes()).resolves.not.toThrow();
+    });
+
+    it('should handle SmartEmbeddingManager import failures', async () => {
+      vi.doMock('../../../src/infrastructure/services/smart-embedding-manager', () => {
+        throw new Error('Module not found');
+      });
+
+      // Should not throw - vector indexes are optional
+      await expect(indexManager.ensureVectorIndexes()).resolves.not.toThrow();
+    });
+  });
+
+  describe('Schema Validation', () => {
+    it('should detect existing schema correctly', async () => {
+      // Mock constraint check - has Memory.id constraint
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ 
+          records: [{ get: () => 'some-constraint-data' }] 
+        })
+        .mockResolvedValueOnce({ 
+          records: [{ get: () => 'memory_type_idx' }] 
+        });
+
+      const hasSchema = await indexManager.hasRequiredSchema();
+
+      expect(hasSchema).toBe(true);
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('SHOW CONSTRAINTS')
+      );
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('SHOW INDEXES')
+      );
+    });
+
+    it('should detect missing constraints', async () => {
+      // Mock constraint check - no Memory.id constraint
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ records: [] })
+        .mockResolvedValueOnce({ 
+          records: [{ get: () => 'memory_type_idx' }] 
+        });
+
+      const hasSchema = await indexManager.hasRequiredSchema();
+
+      expect(hasSchema).toBe(false);
+    });
+
+    it('should detect missing indexes', async () => {
+      // Mock constraint check - has constraint but no index
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ 
+          records: [{ get: () => 'some-constraint-data' }] 
+        })
+        .mockResolvedValueOnce({ records: [] });
+
+      const hasSchema = await indexManager.hasRequiredSchema();
+
+      expect(hasSchema).toBe(false);
+    });
+
+    it('should handle schema check failures gracefully', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Database unavailable'));
+
+      const hasSchema = await indexManager.hasRequiredSchema();
+
+      expect(hasSchema).toBe(false);
+    });
+
+    it('should assume missing schema when checks fail', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Permission denied'));
+
+      const hasSchema = await indexManager.hasRequiredSchema();
+
+      expect(hasSchema).toBe(false);
+    });
+  });
+
+  describe('Complete Schema Initialization', () => {
+    it('should initialize all schema elements successfully', async () => {
+      // Mock SmartEmbeddingManager for vector indexes
+      const mockEmbeddingManager = {
+        getModelDimensions: vi.fn().mockResolvedValue(384)
+      };
+
+      vi.doMock('../../../src/infrastructure/services/smart-embedding-manager', () => ({
+        SmartEmbeddingManager: vi.fn().mockImplementation(() => mockEmbeddingManager)
+      }));
+
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await indexManager.initializeSchema();
+
+      // Should call all schema initialization methods
+      const totalExpectedCalls = 2 + 4 + 2 + 2; // constraints + indexes + fulltext + vector
+      expect(mockSession.run).toHaveBeenCalledTimes(totalExpectedCalls);
+    });
+
+    it('should fail fast on schema initialization errors', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Critical schema error'));
+
+      await expect(indexManager.initializeSchema())
+        .rejects.toThrow('Critical schema error');
+    });
+
+    it('should handle partial initialization failures', async () => {
+      // Constraints succeed, indexes fail
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ records: [] }) // First constraint
+        .mockResolvedValueOnce({ records: [] }) // Second constraint
+        .mockRejectedValueOnce(new Error('Index creation failed')); // First index fails
+
+      await expect(indexManager.initializeSchema())
+        .rejects.toThrow('Index creation failed');
+    });
+  });
+
+  describe('Error Handling and Resilience', () => {
+    it('should handle network timeouts gracefully', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Network timeout'));
+
+      await expect(indexManager.ensureConstraints())
+        .rejects.toThrow('Network timeout');
+    });
+
+    it('should handle database permission errors', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Permission denied'));
+
+      await expect(indexManager.ensureIndexes())
+        .rejects.toThrow('Permission denied');
+    });
+
+    it('should handle malformed Cypher queries', async () => {
+      (mockSession.run as any).mockRejectedValue(new Error('Syntax error'));
+
+      await expect(indexManager.ensureFulltextIndexes())
+        .rejects.toThrow('Syntax error');
+    });
+  });
+});

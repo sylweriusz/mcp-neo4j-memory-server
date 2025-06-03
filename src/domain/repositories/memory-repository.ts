@@ -66,14 +66,13 @@ export interface MemoryRepository {
   createRelation(fromId: string, toId: string, relationType: string): Promise<void>;
 
   /**
-   * Create enhanced relation with metadata (BUG #3 FIX - GDD v2.1.2+)
+   * Create enhanced relation with metadata (simplified without context complexity)
    */
   createEnhancedRelation(request: {
     fromId: string;
     toId: string;
     relationType: string;
     strength: number;
-    context: string[];
     source: string;
     createdAt: string;
   }): Promise<void>;

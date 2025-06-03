@@ -1,6 +1,7 @@
 /**
  * Memory Domain Entity Tests
  * Single responsibility: Verify Memory entity validation and behavior
+ * CURRENT REALITY: No tag system - Memory only has core fields
  */
 import { describe, it, expect } from 'vitest';
 import { Memory } from '../../src/domain/entities/memory';
@@ -13,8 +14,7 @@ describe('Memory Entity', () => {
     metadata: { status: 'active' },
     createdAt: new Date(),
     modifiedAt: new Date(),
-    lastAccessed: new Date(),
-    tags: ['test', 'memory']
+    lastAccessed: new Date()
   };
 
   describe('constructor validation', () => {
@@ -26,14 +26,26 @@ describe('Memory Entity', () => {
         validMemoryData.metadata,
         validMemoryData.createdAt,
         validMemoryData.modifiedAt,
-        validMemoryData.lastAccessed,
-        validMemoryData.tags
+        validMemoryData.lastAccessed
       );
 
       expect(memory.id).toBe(validMemoryData.id);
       expect(memory.name).toBe(validMemoryData.name);
       expect(memory.memoryType).toBe(validMemoryData.memoryType);
-      expect(memory.tags).toEqual(validMemoryData.tags);
+      expect(memory.metadata).toEqual(validMemoryData.metadata);
+    });
+
+    it('should create memory with minimal required fields', () => {
+      const memory = new Memory(
+        validMemoryData.id,
+        validMemoryData.name,
+        validMemoryData.memoryType
+      );
+
+      expect(memory.id).toBe(validMemoryData.id);
+      expect(memory.name).toBe(validMemoryData.name);
+      expect(memory.memoryType).toBe(validMemoryData.memoryType);
+      expect(memory.metadata).toEqual({});
     });
 
     it('should reject invalid ID length', () => {
@@ -64,21 +76,6 @@ describe('Memory Entity', () => {
           '' // Empty type
         );
       }).toThrow('Memory type is required');
-    });
-
-    it('should reject too many tags', () => {
-      expect(() => {
-        new Memory(
-          validMemoryData.id,
-          validMemoryData.name,
-          validMemoryData.memoryType,
-          {},
-          new Date(),
-          new Date(),
-          new Date(),
-          ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] // 7 tags
-        );
-      }).toThrow('Memory cannot have more than 6 tags');
     });
   });
 

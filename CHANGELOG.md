@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-06-01
+
+### 🚨 BREAKING CHANGES
+- **Language Support Limitation**: Removed support for non-Latin script languages (CJK, Indic, RTL, Cyrillic)
+- **Supported Languages Reduced**: Now officially supports 17 space-delimited Latin-script languages only:
+  - English (en), Spanish (es), Portuguese (pt), French (fr), Italian (it)
+  - German (de), Dutch (nl), Swedish (sv), Danish (da), Norwegian (no)  
+  - Finnish (fi), Polish (pl), Czech (cs), Hungarian (hu), Turkish (tr)
+  - Indonesian (id), Swahili (sw)
+
+### Removed
+- **Stopword Files**: Deleted 35 unsupported language stopword files
+- **False Multilingual Claims**: No longer claiming support for 52 languages
+
+### Changed
+- **Tag Extraction**: Updated from v2.1 to v2.2 with honest language support claims
+- **Architecture**: Embraces zero-fallback principle - better to fail clearly than silently provide poor results
+- **Performance**: Reduced memory footprint and improved processing speed by eliminating unused language data
+
+### Technical Rationale
+The previous "universal multilingual support" was architectural dishonesty. Our pipeline uses space-based tokenization and Latin-script regex patterns. Supporting complex scripts would require language-specific tokenizers not included in our architecture. Better to do 17 languages well than 52 languages poorly.
+
+### Migration Impact
+- Content in previously "supported" but now excluded languages will generate empty tag arrays instead of low-quality tags
+- No data loss - existing memories remain intact
+- Tag re-extraction may be beneficial for content that previously generated poor-quality tags
+
 ## [2.1.2] - 2025-05-30
 
 ### Enhanced

@@ -3,9 +3,10 @@ import { ulid } from 'ulid';
 /**
  * Character sets for base conversion
  * BASE85 provides optimal compression while avoiding problematic serialization characters
- * Removed: \ > [ ] | ^ (6 most dangerous characters from BASE91)
+ * Removed: \ > [ ] | ^ < (7 most dangerous characters from BASE91)
+ * Added: ` (backtick) as safe replacement to maintain BASE85
  */
-const BASE85_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;=?@_{}~<';
+const BASE85_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;=?@_{}~`';
 
 /**
  * Generates ultra-compact time-sortable identifier for Neo4j
@@ -50,14 +51,3 @@ function encodeBase85FromUlid(ulid: string): string {
     // This still provides sufficient entropy (85^18 ≈ 2.7 * 10^34 combinations)
     return result.substring(0, 18);
 }
-
-/**
- * Statistics about the compression achieved
- */
-export const compressionStats = {
-    standardUlidLength: 26,
-    compactIdLength: 18,
-    compressionRatio: 18 / 26,
-    spaceSaved: (26 - 18) / 26,
-    totalCombinations: Math.pow(85, 18).toExponential(2)
-} as const;

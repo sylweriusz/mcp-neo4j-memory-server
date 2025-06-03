@@ -1,6 +1,7 @@
 /**
  * Dependency Injection Container - Clean Architecture Complete
  * Single responsibility: Wire up all dependencies with clean database management
+ * GDD v2.1.3: Enhanced with session injection for memory operations
  */
 
 import { Neo4jDriverManager, SessionFactory, IndexManager, CleanDatabaseManager } from '../infrastructure/database';
@@ -13,8 +14,7 @@ import { DeleteMemoryUseCase } from '../application/use-cases/delete-memory';
 import { ManageObservationsUseCase } from '../application/use-cases/manage-observations';
 import { ManageRelationsUseCase } from '../application/use-cases/manage-relations';
 import { XenovaEmbeddingService } from '../infrastructure/services/embedding-service';
-import { CompromiseTagExtractionService } from '../infrastructure/services/tag-extraction-service';
-import { SearchOrchestrator } from '../infrastructure/services/search/search-orchestrator';
+import { TruthFirstSearchOrchestrator } from '../infrastructure/services/search';
 
 export class DIContainer {
   private static instance: DIContainer;
@@ -27,8 +27,7 @@ export class DIContainer {
   
   // Services
   private embeddingService: XenovaEmbeddingService;
-  private tagExtractionService: CompromiseTagExtractionService;
-  private searchOrchestrator: SearchOrchestrator;
+  private searchOrchestrator: TruthFirstSearchOrchestrator;
   
   // Repositories
   private memoryRepository: Neo4jMemoryRepository;
@@ -41,6 +40,9 @@ export class DIContainer {
   private deleteMemoryUseCase: DeleteMemoryUseCase;
   private manageObservationsUseCase: ManageObservationsUseCase;
   private manageRelationsUseCase: ManageRelationsUseCase;
+
+  // Session tracking for cleanup (GDD v2.0.13)
+  private activeSessions: any[] = [];
 
   private constructor() {
     this.initializeInfrastructure();
@@ -64,11 +66,11 @@ export class DIContainer {
 
   private initializeServices(): void {
     this.embeddingService = new XenovaEmbeddingService();
-    this.tagExtractionService = new CompromiseTagExtractionService();
     
     // Initialize search orchestrator with clean session
-    const session = this.sessionFactory.createSession();
-    this.searchOrchestrator = new SearchOrchestrator(session);
+    const searchSession = this.sessionFactory.createSession();
+    this.activeSessions.push(searchSession);
+    this.searchOrchestrator = new TruthFirstSearchOrchestrator(searchSession);
   }
 
   private initializeRepositories(): void {
@@ -79,15 +81,13 @@ export class DIContainer {
   private initializeUseCases(): void {
     this.createMemoryUseCase = new CreateMemoryUseCase(
       this.memoryRepository, 
-      this.embeddingService,
-      this.tagExtractionService
+      this.embeddingService
     );
     this.searchMemoriesUseCase = new SearchMemoriesUseCase(this.searchRepository);
     this.updateMemoryUseCase = new UpdateMemoryUseCase(this.memoryRepository);
     this.deleteMemoryUseCase = new DeleteMemoryUseCase(this.memoryRepository);
     this.manageObservationsUseCase = new ManageObservationsUseCase(
-      this.memoryRepository,
-      this.tagExtractionService  // BUG #2 FIX: Inject tag extraction service
+      this.memoryRepository
     );
     this.manageRelationsUseCase = new ManageRelationsUseCase(this.memoryRepository);
   }
@@ -122,11 +122,7 @@ export class DIContainer {
     return this.embeddingService;
   }
 
-  getTagExtractionService(): CompromiseTagExtractionService {
-    return this.tagExtractionService;
-  }
-
-  getSearchOrchestrator(): SearchOrchestrator {
+  getSearchOrchestrator(): TruthFirstSearchOrchestrator {
     return this.searchOrchestrator;
   }
 
@@ -156,16 +152,11 @@ export class DIContainer {
     
     try {
       // Pre-download embedding model to ensure it's available
-      console.error("[DIContainer] Verifying embedding model availability...");
       await this.embeddingService.preloadModel();
-      console.error("[DIContainer] Embedding model verified and ready");
       
       const hasSchema = await this.indexManager.hasRequiredSchema();
       if (!hasSchema) {
-        console.error("[DIContainer] Schema missing, initializing...");
         await this.indexManager.initializeSchema();
-      } else {
-        console.error("[DIContainer] Schema verified, skipping initialization");
       }
     } finally {
       await session.close();
@@ -173,10 +164,24 @@ export class DIContainer {
   }
 
   async close(): Promise<void> {
-    // Clean shutdown sequence
+    // Clean shutdown sequence (GDD v2.0.13: Cleanup active sessions)
+    
+    // Close active sessions first
+    for (const session of this.activeSessions) {
+      try {
+        await session.close();
+      } catch (error) {
+        console.warn("[DIContainer] Session cleanup error:", error);
+      }
+    }
+    this.activeSessions = [];
+    
+    // Shutdown embedding service
     if (this.embeddingService && typeof this.embeddingService.shutdown === 'function') {
       await this.embeddingService.shutdown();
     }
+    
+    // Close driver last
     await this.driverManager.close();
   }
 }

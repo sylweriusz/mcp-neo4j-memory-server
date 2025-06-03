@@ -1,0 +1,182 @@
+/**
+ * Exact Search Channel Tests - Part 1
+ * Single responsibility: Test case-insensitive exact matching
+ * Coverage target: 15.38% → 75%
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Session } from 'neo4j-driver';
+import { ExactSearchChannel } from '../../../../src/infrastructure/services/search/exact-search-channel';
+
+describe('ExactSearchChannel - Truth-First Exact Matching', () => {
+  let channel: ExactSearchChannel;
+  let mockSession: Session;
+
+  beforeEach(() => {
+    mockSession = {
+      run: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined)
+    } as unknown as Session;
+
+    channel = new ExactSearchChannel(mockSession);
+  });
+
+  describe('Case-Insensitive Text Matching', () => {
+    it('should perform case-insensitive CONTAINS matching', async () => {
+      const mockResults = {
+        records: [{
+          get: vi.fn().mockImplementation((key) => {
+            switch (key) {
+              case 'id': return 'test-id';
+              case 'name': return 'Test Memory';
+              case 'metadata': return '{"key": "value"}';
+              case 'exactMetadata': return true;
+              case 'exactName': return false;
+              case 'exactContent': return false;
+              default: return null;
+            }
+          })
+        }]
+      };
+
+      (mockSession.run as any).mockResolvedValue(mockResults);
+
+      const results = await channel.search('TEST', 10);
+
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE ('),
+        expect.objectContaining({
+          query: 'TEST'  // Actual implementation passes original casing
+        })
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe('test-id');
+      expect(results[0].matchTypes.exactMetadata).toBe(true);
+    });
+
+    it('should search in metadata, name, and observations', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await channel.search('search term', 10);
+
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringMatching(/toLower\(m\.metadata\)|toLower\(m\.name\)|toLower\(o\.content\)/),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('Memory Type Filtering', () => {
+    it('should add memory type filter when provided', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await channel.search('test', 10, ['project', 'task']);
+
+      expect(mockSession.run).toHaveBeenCalledWith(
+        expect.stringContaining('AND m.memoryType IN $memoryTypes'),
+        expect.objectContaining({
+          memoryTypes: ['project', 'task']
+        })
+      );
+    });
+
+    it('should not add filter when memory types not provided', async () => {
+      (mockSession.run as any).mockResolvedValue({ records: [] });
+
+      await channel.search('test', 10);
+
+      const [query] = (mockSession.run as any).mock.calls[0];
+      expect(query).not.toContain('AND m.memoryType IN $memoryTypes');
+    });
+  });
+
+  describe('Match Type Detection', () => {
+    it('should detect exact metadata matches', async () => {
+      const mockResults = {
+        records: [{
+          get: vi.fn().mockImplementation((key) => {
+            switch (key) {
+              case 'id': return 'metadata-match';
+              case 'name': return 'Test';
+              case 'metadata': return '{"description": "test content"}';
+              case 'exactMetadata': return true;
+              case 'exactName': return false;
+              case 'exactContent': return false;
+              default: return null;
+            }
+          })
+        }]
+      };
+
+      (mockSession.run as any).mockResolvedValue(mockResults);
+
+      const results = await channel.search('test', 10);
+
+      expect(results[0].matchTypes.exactMetadata).toBe(true);
+      expect(results[0].matchTypes.exactName).toBe(false);
+      expect(results[0].matchTypes.exactContent).toBe(false);
+    });
+
+    it('should detect exact name matches', async () => {
+      const mockResults = {
+        records: [{
+          get: vi.fn().mockImplementation((key) => {
+            switch (key) {
+              case 'id': return 'name-match';
+              case 'name': return 'Test Project';
+              case 'metadata': return '{}';
+              case 'exactMetadata': return false;
+              case 'exactName': return true;
+              case 'exactContent': return false;
+              default: return null;
+            }
+          })
+        }]
+      };
+
+      (mockSession.run as any).mockResolvedValue(mockResults);
+
+      const results = await channel.search('test', 10);
+
+      expect(results[0].matchTypes.exactName).toBe(true);
+      expect(results[0].matchTypes.exactMetadata).toBe(false);
+    });
+  });
+
+  describe('Metadata Parsing', () => {
+    it('should parse valid JSON metadata', async () => {
+      const mockResults = {
+        records: [{
+          get: vi.fn().mockImplementation((key) => {
+            if (key === 'metadata') return '{"key": "value", "number": 42}';
+            return key === 'id' ? 'test-id' : false;
+          })
+        }]
+      };
+
+      (mockSession.run as any).mockResolvedValue(mockResults);
+
+      const results = await channel.search('test', 10);
+
+      expect(results[0].metadata).toEqual({ key: 'value', number: 42 });
+    });
+
+    it('should handle invalid JSON metadata gracefully', async () => {
+      const mockResults = {
+        records: [{
+          get: vi.fn().mockImplementation((key) => {
+            if (key === 'metadata') return 'invalid json{';
+            return key === 'id' ? 'test-id' : false;
+          })
+        }]
+      };
+
+      (mockSession.run as any).mockResolvedValue(mockResults);
+
+      const results = await channel.search('test', 10);
+
+      expect(results[0].metadata).toEqual({});
+    });
+  });
+});

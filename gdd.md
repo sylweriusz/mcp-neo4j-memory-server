@@ -291,9 +291,16 @@ MATCH (m:Memory {id: $memoryId})
 DELETE m
 ```
 
-## 4. Search Implementation (REVISED v2.2.0)
+## 4. Intelligent Search Architecture
 
-### 4.1 Truth-First Search Architecture
+### 4.1 User-Centric Search Philosophy
+
+#### Core Principles
+- **Comprehensive Results**: Return all relevant matches within specified limits
+- **Transparent Scoring**: Provide interpretable similarity scores (0.0-1.0)  
+- **User Control**: Enable filtering, thresholding, and result management
+- **Predictable Behavior**: Consistent ordering and reproducible results
+- **No Artificial Caps**: Let mathematical similarity drive scoring
 
 #### Query Classification Engine
 ```typescript
@@ -318,21 +325,15 @@ interface QueryPreprocessing {
 - `query.match(/^[^a-zA-Z]*$/)` → exact_search (numbers/symbols only)
 - Otherwise → semantic_search
 
-#### Truth Hierarchy System
+#### Scoring Strategy
 ```typescript
-enum TruthLevel {
-  PERFECT_TRUTH = 1.0,      // Exact metadata + long query OR exact name match
-  HIGH_CONFIDENCE = 0.9,    // Exact metadata match
-  EXACT_NAME = 0.85,        // Exact name match
-  EXACT_CONTENT = 0.8,      // Exact observation content match
-  SEMANTIC_CAP = 0.75       // Maximum for semantic similarity
+interface ScoringWeights {
+  exactMatch: number;      // High confidence for exact matches
+  semanticSimilarity: number; // Vector cosine similarity (uncapped)
+  nameMatch: number;       // Name-based matching bonus
+  contentMatch: number;    // Observation content matching bonus
 }
 ```
-
-**Perfect Truth Detection:**
-- Exact metadata match AND query.length > 10 → PERFECT_TRUTH
-- Exact name match AND normalized(query) === normalized(name) → PERFECT_TRUTH
-- All other exact matches capped at their respective truth levels
 
 ### 4.2 Multi-Channel Search Pipeline
 
@@ -347,72 +348,72 @@ WHERE toLower(m.metadata) CONTAINS toLower($query)
    }
 ```
 
-#### Phase 2: Channel-Specific Scoring
-- **Vector Semantic**: Real similarity score × 0.55 (capped at SEMANTIC_CAP)
-- **Exact Metadata**: TruthLevel.HIGH_CONFIDENCE or TruthLevel.PERFECT_TRUTH
-- **Exact Name**: TruthLevel.EXACT_NAME or TruthLevel.PERFECT_TRUTH  
-- **Exact Content**: TruthLevel.EXACT_CONTENT
+#### Phase 2: Parallel Scoring Channels
+- **Exact Match Detection**: Case-insensitive string matching
+- **Vector Similarity**: Cosine similarity from embeddings (uncapped)
+- **Hybrid Scoring**: Transparent weighted combination
+- **User Control**: Threshold and limit filtering
 
-#### Phase 3: Composite Score Calculation
+#### Phase 3: Transparent Scoring and Ranking
 ```typescript
-function calculateTruthScore(
+function calculateCompositeScore(
   memory: SearchCandidate,
   query: QueryIntent,
   vectorScore?: number
-): number {
-  // Perfect truth always wins
-  if (memory.hasPerfectMatch(query)) {
-    return TruthLevel.PERFECT_TRUTH;
-  }
+): SearchResult {
+  const exactScore = calculateExactMatchScore(memory, query);
+  const semanticScore = vectorScore || 0;
   
-  // High confidence exact matches
-  if (memory.hasExactMetadata) return TruthLevel.HIGH_CONFIDENCE;
-  if (memory.hasExactName) return TruthLevel.EXACT_NAME;
-  if (memory.hasExactContent) return TruthLevel.EXACT_CONTENT;
+  // Transparent scoring - no artificial caps or hierarchies
+  const finalScore = Math.max(exactScore, semanticScore);
+  const matchType = exactScore > semanticScore ? 'exact' : 'semantic';
   
-  // Semantic scoring (capped)
-  const semanticBase = (vectorScore || 0) * 0.55;
-  const contentBonus = memory.contentMatchBonus * 0.25;
-  const nameBonus = memory.namePartialBonus * 0.20;
-  
-  return Math.min(semanticBase + contentBonus + nameBonus, TruthLevel.SEMANTIC_CAP);
+  return {
+    memory,
+    score: finalScore,
+    matchType,
+    explanation: `${matchType}: ${finalScore.toFixed(3)}`
+  };
 }
 ```
 
-### 4.3 Truth-First Search Cypher Pattern
+**Key Principles:**
+- No artificial score caps or truth level hierarchies
+- Mathematical similarity drives all scoring decisions
+- User controls filtering via threshold and limit parameters
+- Consistent, predictable result ordering
+```
+
+### 4.3 Unified Search Query Pattern
 ```cypher
-// Truth-first search with case normalization
+// Comprehensive search with transparent scoring
 MATCH (m:Memory)
 WHERE ($memoryTypes IS NULL OR m.memoryType IN $memoryTypes)
   AND (
-    // Case-insensitive exact matching channels
+    // Case-insensitive matching across all content
     toLower(m.metadata) CONTAINS toLower($query) OR
     toLower(m.name) CONTAINS toLower($query) OR
     EXISTS {
       MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
       WHERE toLower(o.content) CONTAINS toLower($query)
     }
-    // Vector candidates will be merged separately for performance
   )
 
-// Truth level detection with perfect match identification
-WITH m, 
-     // Perfect truth detection
-     CASE WHEN toLower(m.metadata) CONTAINS toLower($query) AND length($query) > 10 THEN 1.0
-          WHEN toLower(m.name) = toLower($query) THEN 1.0
-          WHEN toLower(m.metadata) CONTAINS toLower($query) THEN 0.9
-          WHEN toLower(m.name) CONTAINS toLower($query) THEN 0.85
+// Transparent scoring without artificial hierarchies
+WITH m,
+     // Exact match scoring
+     CASE WHEN toLower(m.name) = toLower($query) THEN 0.95
+          WHEN toLower(m.metadata) CONTAINS toLower($query) THEN 0.85
+          WHEN toLower(m.name) CONTAINS toLower($query) THEN 0.80
           ELSE 0.0 END as exactScore,
      
-     // Vector similarity (capped at semantic limit)
+     // Vector similarity (when available, uncapped)
      CASE WHEN m.nameEmbedding IS NOT NULL 
-          THEN LEAST(gds.similarity.cosine(m.nameEmbedding, $queryVector) * 0.55, 0.75)
+          THEN gds.similarity.cosine(m.nameEmbedding, $queryVector)
           ELSE 0.0 END as semanticScore
 
-// Final scoring with truth supremacy
-WITH m, 
-     CASE WHEN exactScore > 0 THEN exactScore
-          ELSE semanticScore END as finalScore
+// Final scoring - mathematical maximum, no artificial caps
+WITH m, GREATEST(exactScore, semanticScore) as finalScore
 
 WHERE finalScore >= $threshold
 ORDER BY finalScore DESC, m.createdAt DESC
@@ -439,67 +440,22 @@ LIMIT $limit
 
 ```typescript
 interface SearchResult {
-  score: number;           // Semantic distance when available, else simulated from truthLevel
-  matchType: 'semantic' | 'exact';  // Simple classification
-  // truthLevel: internal only - used for sorting/ranking but not exposed
+  score: number;                    // Mathematical similarity value (0.0-1.0)
+  matchType: 'semantic' | 'exact';  // Result classification
+  explanation?: string;             // Optional scoring explanation
 }
 
-interface PracticalHybridSearchResult extends EnhancedSearchResult {
-  score: number;           // User-interpretable similarity value
-  matchType: 'semantic' | 'exact';  // Simple binary classification
-  
-  // Internal processing fields (not exposed to end users)
-  _internal?: {
-    truthLevel: TruthLevel;        // Internal ranking logic
-    matchReason: string;           // Detailed classification for debugging
-    rawVectorScore?: number;       // Original similarity when available
-    simulatedScore?: number;       // Derived score for exact matches
-  };
+interface IntelligentSearchResult extends EnhancedSearchResult {
+  score: number;                    // User-interpretable similarity value  
+  matchType: 'semantic' | 'exact';  // Binary classification for UI
 }
 ```
 
-**Practical Hybrid Score Calculation:**
-```typescript
-function calculatePracticalHybridScore(
-  memory: SearchCandidate,
-  query: QueryIntent,
-  vectorScore?: number
-): { score: number; matchType: 'semantic' | 'exact'; truthLevel: TruthLevel } {
-  
-  // Determine truth level using internal logic
-  const truthLevel = calculateInternalTruthLevel(memory, query, vectorScore);
-  
-  // If we have real vector similarity, use it directly
-  if (vectorScore !== undefined && truthLevel <= TruthLevel.SEMANTIC_CAP) {
-    return {
-      score: vectorScore,           // Raw semantic similarity
-      matchType: 'semantic',
-      truthLevel
-    };
-  }
-  
-  // For exact matches, simulate interpretable similarity values
-  const simulatedScores = {
-    [TruthLevel.PERFECT_TRUTH]: 0.95,    // Very high confidence
-    [TruthLevel.HIGH_CONFIDENCE]: 0.90,  // High confidence  
-    [TruthLevel.EXACT_NAME]: 0.85,       // Name match confidence
-    [TruthLevel.EXACT_CONTENT]: 0.80     // Content match confidence
-  };
-  
-  return {
-    score: simulatedScores[truthLevel] || truthLevel,
-    matchType: 'exact',
-    truthLevel
-  };
-}
-```
-
-**Design Principles:**
-- **User Experience**: Score represents interpretable similarity (0.0-1.0 range)
-- **Implementation**: Truth levels remain internal for ranking and logic
-- **Transparency**: matchType clearly indicates semantic vs exact matching
-- **Consistency**: Semantic scores are real cosine similarity values
-- **Intuitive**: Exact matches get high simulated similarity scores (0.80-0.95)
+**Core Principles:**
+- **Mathematical Transparency**: Scores reflect actual similarity calculations
+- **User Control**: Threshold, limit, and type filtering drive result management
+- **Predictable Behavior**: Consistent ordering enables reliable user experience
+- **No Artificial Limits**: Let mathematical similarity determine relevance
 
 ## 5. Database Management
 
@@ -621,7 +577,7 @@ VECTOR_PRELOAD=true                                                      # Downl
 
 **Content Operations:**
 - `observation_manage`: Add, delete observations
-- `relation_manage`: Create intelligent directional relationships with contextual metadata
+- `relation_manage`: Create intelligent directional relationships with enhanced metadata
 
 **System Operations:**
 - `database_switch`: Database management
@@ -693,11 +649,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 - `0.3-0.4`: Weak associations, tangential connections, minor influences
 - `0.1-0.2`: Barely related, speculative connections, distant similarities
 
-**Context Usage Patterns:**
-- **Cross-domain intelligence**: Connect programming patterns to writing processes via shared contexts
-- **Filtered suggestions**: Use context to show relevant relationships ("Show programming-related connections")
-- **Smart prioritization**: Stronger relationships in matching contexts get higher priority
-
 **Source Attribution Strategy:**
 - `"agent"`: Default - when you analyze content and identify meaningful connections
 - `"user"`: When user explicitly requests "Connect A to B" or "A is related to B"  
@@ -714,7 +665,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 {
   "relationType": "INFLUENCES",
   "strength": 0.9,
-  "context": ["architecture", "programming"],
   "source": "agent"
 }
 
@@ -722,7 +672,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 {
   "relationType": "INSPIRES",
   "strength": 0.6,
-  "context": ["creative", "problem-solving"],
   "source": "user"
 }
 
@@ -730,7 +679,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 {
   "relationType": "RELATES_TO", 
   "strength": 0.3,
-  "context": ["research"],
   "source": "agent"
 }
 ```
@@ -861,8 +809,8 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **Batch processing**: All tools support batch operations
 - **Graph context**: 2-level relationship traversal included in responses
 - **Metadata support**: Flexible JSON structure with full-text search
-- **AI-optimized**: Minimal response size with essential context
-- **Intelligence-first relationships**: Rich metadata enables context-aware, temporal, and strength-based relationship intelligence
+- **AI-optimized**: Minimal response size with essential graph context
+- **Intelligence-first relationships**: Rich metadata enables temporal and strength-based relationship intelligence
 - **Agent guidance integration**: Tool descriptions and response formats guide optimal metadata usage patterns
 
 
@@ -908,13 +856,12 @@ VECTOR_PRELOAD=true                                                      # Downl
   - Return full memory objects with observation IDs included
 
 ### 8.6 Enhanced Relationship Metadata Requirements
-- **REQUIREMENT**: All relationship types MUST include comprehensive metadata for intelligent context understanding
+- **REQUIREMENT**: All relationship types MUST include comprehensive metadata for intelligent relationship understanding
 - **IMPLEMENTATION**: 
   - `strength` field MUST be validated as 0.0-1.0 range with default 0.5
-  - `context` field MUST be auto-inferred when not explicitly provided by agent
   - `source` field MUST accurately reflect relationship origin ("agent", "user", "system")
   - `createdAt` field MUST be system-generated ISO timestamp at creation time
-- **VALIDATION**: Reject relationships with invalid strength values or malformed context arrays
+- **VALIDATION**: Reject relationships with invalid strength values
 - **BACKWARDS COMPATIBILITY**: Existing relationships without metadata get default values during migration
 
 ### 8.7 Relationship Source Attribution Standards
@@ -925,15 +872,7 @@ VECTOR_PRELOAD=true                                                      # Downl
   - "system": Automatic relationships (observations, future similarity detection)
 - **CONSISTENCY**: Source determination logic MUST be applied uniformly across all relationship creation paths
 
-### 8.8 Context Inference Intelligence  
-- **REQUIREMENT**: When agent does not provide explicit context, system MUST intelligently infer from memory types
-- **IMPLEMENTATION**: 
-  - Context inference MUST use predefined memory type mappings
-  - Multiple contexts allowed when memories span domains
-  - Empty context array only when inference impossible
-- **EXTENSIBILITY**: Context inference logic MUST be easily expandable for new memory types
-
-### 8.9 Structural Memory Guidance (v2.0.6)
+### 8.8 Structural Memory Guidance (v2.0.6)
 - **REQUIREMENT**: All MCP tool descriptions MUST guide users toward architectural discipline in memory structure
 - **PATTERN**: Metadata for structural overviews (schemas, hierarchies, patterns), observations for complete functional modules
 - **ANTI-FRAGMENTATION**: Each observation should be self-contained and actionable, not sentence fragments
@@ -962,10 +901,10 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **PATTERN**: "Track each item's fate individually, summarize collectively"
 - **ERROR GRANULARITY**: Each failed operation must identify the specific ID and reason for failure
 
-### 8.12 Truth-First Search Requirements (NEW v2.2.0)
-- **REQUIREMENT**: Perfect truth matches MUST always score 1.0
-- **REQUIREMENT**: Semantic matches MUST be capped at 0.75
-- **IMPLEMENTATION**: Enforce in score calculation function with explicit caps
+### 8.12 Intelligent Search Standards (NEW v2.3.1)
+- **REQUIREMENT**: All search scores MUST reflect mathematical similarity (0.0-1.0)
+- **REQUIREMENT**: User controls via threshold, limit, and type filtering MUST be respected
+- **IMPLEMENTATION**: Transparent scoring without artificial caps or hierarchies
 
 ### 8.13 Case Normalization Standards (NEW v2.2.0)
 - **REQUIREMENT**: All text comparisons MUST use `toLower()` normalization
@@ -982,27 +921,25 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **REQUIREMENT**: Search failures MUST be logged for pipeline improvement
 - **IMPLEMENTATION**: No rescue mechanisms that mask true search failures
 
-### 8.17 Practical Hybrid Score Requirements (NEW v2.3.0)
+### 8.17 Practical Search Scoring Standards (UPDATED v2.3.2)
 - **REQUIREMENT**: SearchResult.score MUST contain interpretable similarity values (0.0-1.0 range)
-- **REQUIREMENT**: When vector similarity available, use raw cosine similarity as score
-- **REQUIREMENT**: For exact matches without vector data, simulate high confidence scores (0.80-0.95)
+- **REQUIREMENT**: Exact matches MUST rank higher than semantic matches (ordering priority)
+- **REQUIREMENT**: When vector similarity available, use mathematical cosine similarity as base score
 - **REQUIREMENT**: matchType MUST be binary classification: 'semantic' | 'exact'
-- **REQUIREMENT**: Truth levels remain internal for ranking logic only
 - **IMPLEMENTATION**: 
-  - Perfect truth matches → score: 0.95, matchType: 'exact'
-  - High confidence exact → score: 0.90, matchType: 'exact'  
-  - Exact name matches → score: 0.85, matchType: 'exact'
-  - Exact content matches → score: 0.80, matchType: 'exact'
-  - Vector similarity → score: raw_cosine_similarity, matchType: 'semantic'
-- **USER EXPERIENCE**: Users get consistent 0-1 similarity interpretation across all match types
-- **DEBUGGING**: Internal _internal field may contain truthLevel, matchReason for development only
+  - Exact matches → consistently high scores (>0.8) with highest ranking priority
+  - Semantic matches → raw mathematical similarity scores from vector calculations
+  - Vector similarity → score: cosine_similarity, matchType: 'semantic'
+- **USER EXPERIENCE**: Users receive correct results in correct order with interpretable similarity values
+- **PRAGMATIC APPROACH**: Ranking accuracy is more important than score precision
 
-### 8.18 Score Consistency Standards (NEW v2.3.0)
+### 8.18 Score Consistency Standards (UPDATED v2.3.2)
 - **REQUIREMENT**: All search responses MUST return interpretable similarity values
 - **REQUIREMENT**: Scores MUST be monotonic with result relevance (higher = more relevant)
-- **REQUIREMENT**: No exposure of internal truth level enumeration to end users
-- **IMPLEMENTATION**: Truth hierarchy logic drives sorting, but score reflects semantic distance
-- **VALIDATION**: Ensure simulated scores for exact matches align with user expectations
+- **REQUIREMENT**: Exact matches consistently rank first regardless of absolute score value
+- **IMPLEMENTATION**: Mathematical similarity with ranking priority for exact matches
+- **VALIDATION**: Ensure search results appear in correct relevance order for user queries
+- **PRACTICAL STANDARD**: Score values in 0.8-1.0 range for exact matches are acceptable
 
 ### 8.19 Index Usage Standards (NEW v2.3.1)
 - **REQUIREMENT**: Every defined index MUST have documented query patterns that use it

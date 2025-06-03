@@ -105,11 +105,6 @@ export type MemoryInput = z.infer<typeof MemoryObject>;
  *
  * They are always stored in active voice and describe how memories interact or relate to each other
  */
-export const RelationObject = z.object({
-  fromId: z.string().describe("The id of the memory where the relation starts"),
-  toId: z.string().describe("The id of the memory where the relation ends"),
-  relationType: z.string().describe("The type of the relation"),
-});
 export type Relation = {
   fromId: string;
   toId: string;
@@ -121,15 +116,10 @@ export type Relation = {
  * 
  * For batch operations, we use ObservationBatch. For internal model, we use ObservationNode.
  */
-export const ObservationObject = z.object({
-  memoryId: z
-    .string()
-    .describe("The ID of the memory to add the observations to"),
-  contents: z
-    .array(z.string())
-    .describe("An array of observation contents to add"),
-});
-export type Observation = z.infer<typeof ObservationObject>;
+export type Observation = {
+  memoryId: string;
+  contents: string[];
+};
 
 /**
  * Internal observation node model with metadata
@@ -183,12 +173,11 @@ export type DatabaseInfo = {
 };
 
 /**
- * Database switch request object schema
+ * Database switch request object  
  */
-export const DatabaseSwitchObject = z.object({
-  databaseName: z.string().describe("The name of the database to switch to"),
-  createIfNotExists: z.boolean().optional().describe("Whether to create the database if it doesn't exist"),
-});
-export type DatabaseSwitch = z.infer<typeof DatabaseSwitchObject>;
+export type DatabaseSwitch = {
+  databaseName: string;
+  createIfNotExists?: boolean;
+};
 
 

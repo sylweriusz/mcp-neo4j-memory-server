@@ -6,7 +6,7 @@
 
 import { Session } from 'neo4j-driver';
 import neo4j from 'neo4j-driver';
-import { EnhancedSearchResult } from '../../../domain/entities/search-config';
+import { EnhancedSearchResult } from '../../../types';
 
 export class WildcardSearchService {
   constructor(private session: Session) {}

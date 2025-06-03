@@ -28,9 +28,9 @@ Add to Claude Desktop config:
 
 ## Neo4j Setup
 
-### Option 1: DozerDB with GDS Plugin (Recommended)
+### Option 1: DozerDB with GDS Plugin
 
-For optimal vector search performance, use DozerDB with the Graph Data Science plugin:
+For the database, use DozerDB with the Graph Data Science plug-in, GDS is not only recommended but necessary:
 
 ```bash
 # Run DozerDB container
@@ -53,7 +53,7 @@ docker restart $(docker ps -q --filter ancestor=graphstack/dozerdb)
 # RETURN gds.similarity.cosine([1,2,3], [2,3,4]) as similarity
 ```
 
-### Option 2: Standard Neo4j
+### Option 2: Standard Neo4j (not(by me) tested with GDS)
 
 ```bash
 # Docker (basic setup)
@@ -62,19 +62,18 @@ docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
 # Or download from neo4j.com/download
 ```
 
-### Option 3: Cloud
+### Option 3: Cloud (not(by me) tested with GDS)
 
 - Neo4j AuraDB (free tier available)
 - Use connection string as NEO4J_URI
 
-**Note**: Without GDS plugin, vector search will use in-memory calculation (slower but functional).
+**Note**: Without GDS plugin, vector search will fail.
 
 ## Features
 
 - **Persistent Memory**: Information survives conversation restarts
 - **Semantic Search**: Natural language queries using vector embeddings
-  - **GDS Plugin**: Native Neo4j vector operations (recommended)
-  - **In-Memory**: Fallback calculation when GDS unavailable  
+  - **GDS Plugin**: Native Neo4j vector operations (necessary)
 - **Knowledge Graphs**: Connect related memories with directional relationships
 - **Multi-Database**: Organize by project/context
 - **Zero-Fallback Architecture**: Explicit errors instead of hidden failures

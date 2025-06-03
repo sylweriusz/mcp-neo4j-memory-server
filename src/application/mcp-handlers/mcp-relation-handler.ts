@@ -18,6 +18,8 @@ export class McpRelationHandler {
       fromId: string;
       toId: string;
       relationType: string;
+      strength?: number;
+      source?: 'agent' | 'user' | 'system';
     }>;
   }): Promise<any> {
     const currentDb = this.container.getCurrentDatabase();

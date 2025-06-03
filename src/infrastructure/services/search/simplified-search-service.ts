@@ -1,43 +1,41 @@
 /**
- * Truth-First Search Orchestrator - Clean Architecture Implementation
- * Single responsibility: Coordinate truth-first search pipeline
+ * Simplified Search Service - Clean Architecture Implementation
+ * Single responsibility: Execute search with transparent mathematical scoring
  * 
- * THE IMPLEMENTOR'S RULE: Build exactly what's specified in GDD v2.2.0
- * Performance targets: <100ms exact, <500ms vector, strict limit enforcement
+ * THE IMPLEMENTOR'S RULE: No truth levels, no orchestration theater, just math
  */
 
 import { Session } from 'neo4j-driver';
 import { QueryClassifier, QueryIntent, QueryType } from './query-classifier';
-import { TruthScorer, TruthLevel } from './truth-scorer';
 import { ExactSearchChannel } from './exact-search-channel';
 import { VectorSearchChannel, VectorCandidate } from './vector-search-channel';
 import { WildcardSearchService } from './wildcard-search-service';
-import { SearchResultProcessor, PracticalHybridSearchResult } from './search-result-processor';
+import { EnhancedSearchResult } from '../../../types';
+
+export interface SimpleSearchResult extends EnhancedSearchResult {
+  score: number;                    // Raw mathematical similarity (0.0-1.0)
+  matchType: 'semantic' | 'exact';  // Simple binary classification
+}
 
 /**
- * Truth-first search orchestrator implementing GDD v2.2.0 architecture
- * Zero fallback - explicit failures for pipeline debugging
+ * Clean search service that eliminates truth-level complexity
+ * Direct execution: Query → Classification → Search → Score → Results
  */
-export class TruthFirstSearchOrchestrator {
+export class SimplifiedSearchService {
   private queryClassifier: QueryClassifier;
-  private truthScorer: TruthScorer;
   private exactChannel: ExactSearchChannel;
   private vectorChannel: VectorSearchChannel;
   private wildcardService: WildcardSearchService;
-  private resultProcessor: SearchResultProcessor;
 
   constructor(private session: Session) {
     this.queryClassifier = new QueryClassifier();
-    this.truthScorer = new TruthScorer();
     this.exactChannel = new ExactSearchChannel(session);
     this.vectorChannel = new VectorSearchChannel(session);
     this.wildcardService = new WildcardSearchService(session);
-    this.resultProcessor = new SearchResultProcessor(this.truthScorer);
   }
 
   /**
-   * Execute truth-first search according to GDD v2.2.0 specification
-   * Strict limit enforcement and zero fallback architecture
+   * Execute search with simplified, transparent scoring
    */
   async search(
     query: string,
@@ -45,7 +43,7 @@ export class TruthFirstSearchOrchestrator {
     includeGraphContext: boolean = true,
     memoryTypes?: string[],
     threshold: number = 0.1
-  ): Promise<PracticalHybridSearchResult[]> {
+  ): Promise<SimpleSearchResult[]> {
     // Input validation
     if (!query || typeof query !== 'string') {
       throw new Error('Search query must be a non-empty string');
@@ -68,48 +66,32 @@ export class TruthFirstSearchOrchestrator {
       
       return wildcardResults.map(result => ({
         ...result,
-        score: result.score || 1.0,         // Ensure required score property
-        matchType: 'exact' as const,
-        _internal: {
-          truthLevel: TruthLevel.PERFECT_TRUTH,
-          matchReason: 'wildcard',
-          simulatedScore: 1.0
-        }
+        score: 1.0,         // Wildcard gets perfect score
+        matchType: 'exact' as const
       }));
     }
 
-    // Multi-channel search execution
-    const searchResults = await this.executeMultiChannelSearch(
-      queryIntent,
-      limit,
-      threshold,
-      memoryTypes
-    );
-
-    // Enhanced search results already include graph context via enrichWithFullMemoryData
-    // No additional processing needed when includeGraphContext is true
-
-    // Strict limit enforcement (GDD 8.1)
-    return searchResults.slice(0, limit);
+    // Execute multi-channel search
+    return this.executeSearch(queryIntent, limit, threshold, memoryTypes);
   }
 
   /**
-   * Execute multi-channel search with truth-first scoring
+   * Execute search across exact and vector channels
    */
-  private async executeMultiChannelSearch(
+  private async executeSearch(
     queryIntent: QueryIntent,
     limit: number,
     threshold: number,
     memoryTypes?: string[]
-  ): Promise<PracticalHybridSearchResult[]> {
-    // Execute exact search channel (always)
+  ): Promise<SimpleSearchResult[]> {
+    // Execute exact search (always)
     const exactCandidates = await this.exactChannel.search(
       queryIntent.preprocessing.normalized,
       limit * 2,
       memoryTypes
     );
 
-    // Execute vector search channel (semantic queries only)
+    // Execute vector search (semantic queries only)
     let vectorCandidates: VectorCandidate[] = [];
     if (queryIntent.type === QueryType.SEMANTIC_SEARCH) {
       try {
@@ -120,29 +102,94 @@ export class TruthFirstSearchOrchestrator {
           memoryTypes
         );
       } catch (error) {
-        console.warn('[TruthSearch] Vector channel failed:', error instanceof Error ? error.message : String(error));
+        console.warn('[SimplifiedSearch] Vector search failed:', error instanceof Error ? error.message : String(error));
       }
     }
 
-    // Process and score candidates
-    const scoredCandidates = this.resultProcessor.combineAndScore(
-      exactCandidates,
-      vectorCandidates,
-      queryIntent,
-      threshold
-    );
+    // Combine and score candidates
+    const candidateMap = new Map<string, {
+      id: string;
+      hasExactMatch: boolean;
+      vectorScore?: number;
+    }>();
+
+    // Process exact candidates
+    for (const exact of exactCandidates) {
+      candidateMap.set(exact.id, {
+        id: exact.id,
+        hasExactMatch: true
+      });
+    }
+
+    // Process vector candidates
+    for (const vector of vectorCandidates) {
+      const existing = candidateMap.get(vector.id);
+      if (existing) {
+        existing.vectorScore = vector.score;
+      } else {
+        candidateMap.set(vector.id, {
+          id: vector.id,
+          hasExactMatch: false,
+          vectorScore: vector.score
+        });
+      }
+    }
+
+    // Score and filter candidates
+    const scoredCandidates = Array.from(candidateMap.values())
+      .map(candidate => this.calculateSimpleScore(candidate))
+      .filter(result => result.score >= threshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
 
     // Enrich with full memory data
-    return this.enrichWithFullMemoryData(scoredCandidates, memoryTypes);
+    return this.enrichWithMemoryData(scoredCandidates, memoryTypes);
+  }
+
+  /**
+   * Calculate simple mathematical score without truth levels
+   */
+  private calculateSimpleScore(candidate: {
+    id: string;
+    hasExactMatch: boolean;
+    vectorScore?: number;
+  }): { id: string; score: number; matchType: 'semantic' | 'exact' } {
+    
+    if (candidate.hasExactMatch) {
+      // Exact match gets high score, boosted if also has vector similarity
+      const baseScore = 0.85;
+      const vectorBoost = candidate.vectorScore ? Math.min(candidate.vectorScore * 0.15, 0.15) : 0;
+      return {
+        id: candidate.id,
+        score: Math.min(baseScore + vectorBoost, 1.0),
+        matchType: 'exact'
+      };
+    }
+
+    if (candidate.vectorScore) {
+      // Pure semantic match
+      return {
+        id: candidate.id,
+        score: candidate.vectorScore,
+        matchType: 'semantic'
+      };
+    }
+
+    // Should not happen, but safety net
+    return {
+      id: candidate.id,
+      score: 0.1,
+      matchType: 'exact'
+    };
   }
 
   /**
    * Enrich scored candidates with full memory data
    */
-  private async enrichWithFullMemoryData(
-    candidates: PracticalHybridSearchResult[],
+  private async enrichWithMemoryData(
+    candidates: Array<{ id: string; score: number; matchType: 'semantic' | 'exact' }>,
     memoryTypes?: string[]
-  ): Promise<PracticalHybridSearchResult[]> {
+  ): Promise<SimpleSearchResult[]> {
     if (candidates.length === 0) return [];
 
     const candidateIds = candidates.map(c => c.id);
@@ -225,22 +272,28 @@ export class TruthFirstSearchOrchestrator {
     }
 
     // Merge with scored candidates maintaining order
-    return candidates.map(candidate => {
-      const enriched = enrichedMap.get(candidate.id);
-      if (enriched) {
+    return candidates
+      .map(candidate => {
+        const enriched = enrichedMap.get(candidate.id);
+        if (enriched) {
+          return {
+            ...enriched,
+            score: candidate.score,
+            matchType: candidate.matchType
+          };
+        }
+        // Return stub if enrichment failed
         return {
-          ...candidate,
-          name: enriched.name,
-          type: enriched.type,
-          observations: enriched.observations,
-          metadata: enriched.metadata,
-          createdAt: enriched.createdAt,
-          modifiedAt: enriched.modifiedAt,
-          lastAccessed: enriched.lastAccessed
+          id: candidate.id,
+          name: `Unknown Memory ${candidate.id}`,
+          type: 'unknown',
+          observations: [],
+          metadata: {},
+          score: candidate.score,
+          matchType: candidate.matchType
         };
-      }
-      return candidate; // Return original if enrichment failed
-    });
+      })
+      .filter(result => result.id); // Remove any failed enrichments
   }
 
   private processObservations(observations: any[]): Array<{id?: string, content: string, createdAt: string}> {

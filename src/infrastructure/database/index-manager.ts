@@ -10,10 +10,52 @@ export class IndexManager {
   constructor(private session: Session) {}
 
   /**
+   * MENTAT DISCIPLINE: Zero-fallback system database validation
+   * The first principle of Mentat programming: Fail fast when the universe is not as expected
+   */
+  private async validateUserDatabase(): Promise<void> {
+    try {
+      // Query database information to validate context
+      const result = await this.session.run('CALL db.info() YIELD name');
+      const dbName = result.records[0]?.get('name');
+      
+      if (dbName === 'system') {
+        throw new Error(`MENTAT VIOLATION: Cannot create constraints on system database. Context: ${dbName}`);
+      }
+      
+      // Additional validation for null/undefined database name
+      if (!dbName) {
+        throw new Error('MENTAT VIOLATION: Database name could not be determined');
+      }
+      
+    } catch (error) {
+      // If db.info() fails, try fallback detection
+      if (error instanceof Error && error.message.includes('MENTAT VIOLATION')) {
+        throw error; // Re-throw our specific violations
+      }
+      
+      // Fallback: Try to detect system database through other means
+      try {
+        await this.session.run('SHOW DATABASES LIMIT 1');
+        // If this succeeds, we're likely on system database (only system can SHOW DATABASES)
+        throw new Error('MENTAT VIOLATION: Detected system database context via SHOW DATABASES capability');
+      } catch (showDbError) {
+        // If SHOW DATABASES fails, we're likely on a user database (which is correct)
+        // Continue with constraint creation
+        return;
+      }
+    }
+  }
+
+  /**
    * Ensure all required constraints exist
    * GDD v2.3.1: Added critical Observation.id constraint
+   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureConstraints(): Promise<void> {
+    // ZERO-FALLBACK: Fail fast if wrong database context
+    await this.validateUserDatabase();
+
     const constraints = [
       // CRITICAL: Used in all Memory CRUD operations
       'CREATE CONSTRAINT memory_id_unique IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE',
@@ -34,8 +76,11 @@ export class IndexManager {
   /**
    * Ensure ACTIVE indexes exist (verified query usage)
    * GDD v2.3.1: Removed dead indexes, added missing critical ones
+   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureActiveIndexes(): Promise<void> {
+    // ZERO-FALLBACK: Fail fast if wrong database context
+    await this.validateUserDatabase();
     const activeIndexes = [
       // VERIFIED USAGE: wildcard-search-service.ts, vector-search-channel.ts
       // Pattern: WHERE m.memoryType IN $memoryTypes
@@ -67,8 +112,11 @@ export class IndexManager {
   /**
    * Ensure fulltext indexes exist
    * GDD v2.3.1: Maintained for proper FULLTEXT usage
+   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureFulltextIndexes(): Promise<void> {
+    // ZERO-FALLBACK: Fail fast if wrong database context
+    await this.validateUserDatabase();
     const fulltextIndexes = [
       // USAGE: CALL db.index.fulltext.queryNodes('memory_metadata_idx', $query)
       'CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]',
@@ -89,8 +137,11 @@ export class IndexManager {
   /**
    * Ensure vector indexes exist (GDS Plugin)
    * GDD v2.3.1: VERIFIED USAGE in vector-search-channel.ts
+   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureVectorIndexes(): Promise<void> {
+    // ZERO-FALLBACK: Fail fast if wrong database context
+    await this.validateUserDatabase();
     try {
       // Import here to avoid circular dependencies
       const { SmartEmbeddingManager } = await import('../services/smart-embedding-manager');
@@ -141,7 +192,7 @@ export class IndexManager {
     for (const indexName of deadIndexes) {
       try {
         await this.session.run(`DROP INDEX ${indexName} IF EXISTS`);
-        console.log(`[IndexManager] Removed dead index: ${indexName}`);
+        console.error(`[IndexManager] Removed dead index: ${indexName}`);
       } catch (error) {
         // Index might not exist - continue cleanup
         console.warn(`[IndexManager] Could not remove ${indexName}:`, error);
@@ -201,8 +252,12 @@ export class IndexManager {
   /**
    * Initialize all database schema elements
    * GDD v2.3.1: Reality-based initialization with dead index cleanup
+   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async initializeSchema(): Promise<void> {
+    // ZERO-FALLBACK: Validate database context before any schema operations
+    await this.validateUserDatabase();
+
     try {
       // Step 1: Remove dead indexes first (clean slate)
       await this.removeDeadIndexes();
@@ -219,7 +274,7 @@ export class IndexManager {
       // Step 5: Create vector indexes (if supported)
       await this.ensureVectorIndexes();
       
-      console.log('[IndexManager] Schema initialization COMPLETE - reality-based indexes only');
+      console.error('[IndexManager] Schema initialization COMPLETE - reality-based indexes only');
     } catch (error) {
       console.error("[IndexManager] Schema initialization FAILED:", error);
       throw error; // Fail fast - no silent failures

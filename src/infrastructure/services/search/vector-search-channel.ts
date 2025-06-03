@@ -1,7 +1,15 @@
 /**
- * Vector Search Channel - Semantic Similarity Engine
- * Single responsibility: Vector similarity operations
+ * Vector Search Channel - Semantic Similarity Engine (ZERO-FALLBACK CORRECTED)
+ * Single responsibility: Vector similarity operations using Neo4j GDS
  * Performance target: <500ms (GDD v2.2.0)
+ * 
+ * CORRECTED IMPLEMENTATION: GDS is REQUIRED, not optional
+ * ZERO-FALLBACK POLICY: If GDS fails, search fails. Period.
+ * 
+ * Based on system documentation:
+ * - DozerDB setup includes GDS plugin installation
+ * - GDS functions are documented as standard features
+ * - Verification command provided: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
  */
 
 import { Session } from 'neo4j-driver';
@@ -14,13 +22,13 @@ export interface VectorCandidate {
 }
 
 export class VectorSearchChannel {
-  private gdsSupport: boolean | null = null;
+  private gdsVerified: boolean | null = null;
 
   constructor(private session: Session) {}
 
   /**
-   * Execute vector similarity search
-   * Auto-detects GDS vs in-memory calculation
+   * Execute vector similarity search using Neo4j GDS
+   * ZERO-FALLBACK: Either GDS works or we fail fast with setup instructions
    */
   async search(
     query: string,
@@ -28,17 +36,63 @@ export class VectorSearchChannel {
     threshold: number,
     memoryTypes?: string[]
   ): Promise<VectorCandidate[]> {
-    const queryVector = await calculateEmbedding(query);
-    const hasGDS = await this.detectGDSSupport();
+    // Ensure GDS is available before proceeding
+    await this.ensureGDSAvailable();
     
-    if (hasGDS) {
-      return this.searchGDS(queryVector, limit, threshold, memoryTypes);
-    } else {
-      return this.searchInMemory(queryVector, limit, threshold, memoryTypes);
+    const queryVector = await calculateEmbedding(query);
+    return this.searchWithGDS(queryVector, limit, threshold, memoryTypes);
+  }
+
+  /**
+   * MENTAT DISCIPLINE: Verify GDS is properly configured
+   * If it fails, provide clear setup instructions - no silent fallbacks
+   */
+  private async ensureGDSAvailable(): Promise<void> {
+    if (this.gdsVerified === true) {
+      return; // Already verified in this session
+    }
+
+    try {
+      // Use the exact verification command from README.NEO4J.md
+      const result = await this.session.run(
+        'RETURN gds.similarity.cosine([1,2,3], [2,3,4]) AS similarity'
+      );
+      
+      const similarity = result.records[0]?.get('similarity');
+      if (typeof similarity !== 'number') {
+        throw new Error('GDS function returned invalid result');
+      }
+      
+      this.gdsVerified = true;
+      console.info('[VectorSearch] Neo4j GDS plugin verified successfully');
+      
+    } catch (error) {
+      this.gdsVerified = false;
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // ZERO-FALLBACK: Provide clear setup instructions instead of silently degrading
+      throw new Error(`
+Neo4j Graph Data Science (GDS) plugin is required but not available.
+
+Error: ${errorMessage}
+
+SETUP INSTRUCTIONS:
+1. Install DozerDB with GDS plugin as documented in README.NEO4J.md
+2. Download: https://github.com/DozerDB/graph-data-science/releases/download/2.8.0-alpha01/open-gds-2.8.0-alpha01.jar
+3. Copy to Neo4j plugins directory and restart
+4. Verify with: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
+
+This system requires GDS for vector similarity operations. No fallback mode available.
+      `.trim());
     }
   }
 
-  private async searchGDS(
+  /**
+   * Execute vector search using GDS plugin
+   * ASSUMES GDS is available - ensureGDSAvailable() must be called first
+   */
+  private async searchWithGDS(
     queryVector: Vector,
     limit: number,
     threshold: number,
@@ -53,13 +107,13 @@ export class VectorSearchChannel {
       MATCH (m:Memory)
       ${whereClause}
       
-      // Calculate name embedding score
+      // Calculate name embedding score using GDS
       WITH m,
            CASE WHEN m.nameEmbedding IS NOT NULL 
                 THEN gds.similarity.cosine(m.nameEmbedding, $queryVector) 
                 ELSE 0.0 END AS nameScore
       
-      // Calculate best observation embedding score
+      // Calculate best observation embedding score using GDS
       OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
       WITH m, nameScore,
            CASE WHEN o.embedding IS NOT NULL 
@@ -78,121 +132,42 @@ export class VectorSearchChannel {
       RETURN m.id as id, bestScore as score
     `;
 
-    const result = await this.session.run(cypher, {
-      queryVector,
-      threshold,
-      limit: neo4j.int(limit),
-      memoryTypes
-    });
-
-    return result.records.map(record => ({
-      id: record.get('id'),
-      score: record.get('score')
-    }));
-  }
-
-  private async searchInMemory(
-    queryVector: Vector,
-    limit: number,
-    threshold: number,
-    memoryTypes?: string[]
-  ): Promise<VectorCandidate[]> {
-    let whereClause = '';
-    if (memoryTypes && memoryTypes.length > 0) {
-      whereClause = 'WHERE m.memoryType IN $memoryTypes';
-    }
-
-    const cypher = `
-      MATCH (m:Memory)
-      ${whereClause}
-      OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
-      RETURN m.id as id,
-             m.nameEmbedding as nameEmbedding,
-             collect(o.embedding) as observationEmbeddings
-    `;
-
-    const result = await this.session.run(cypher, { memoryTypes });
-
-    const similarities = result.records
-      .map(record => {
-        const id = record.get('id');
-        const nameEmbedding = record.get('nameEmbedding');
-        const obsEmbeddings = (record.get('observationEmbeddings') || [])
-          .filter((emb: any) => emb !== null);
-
-        let bestScore = 0;
-
-        // Check name embedding first
-        if (nameEmbedding && Array.isArray(nameEmbedding)) {
-          bestScore = Math.max(bestScore, this.cosineSimilarity(queryVector, nameEmbedding));
-        }
-
-        // Check observation embeddings
-        for (const obsEmbedding of obsEmbeddings) {
-          if (obsEmbedding && Array.isArray(obsEmbedding)) {
-            bestScore = Math.max(bestScore, this.cosineSimilarity(queryVector, obsEmbedding));
-          }
-        }
-
-        return { id, score: bestScore };
-      })
-      .filter(item => item.score >= threshold)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-
-    return similarities;
-  }
-
-  private async detectGDSSupport(): Promise<boolean> {
-    if (this.gdsSupport !== null) {
-      return this.gdsSupport;
-    }
-
     try {
-      await this.session.run(`RETURN gds.similarity.cosine([0.1, 0.2], [0.2, 0.3]) AS test`);
-      this.gdsSupport = true;
-    } catch {
-      this.gdsSupport = false;
-    }
+      const result = await this.session.run(cypher, {
+        queryVector,
+        threshold,
+        limit: neo4j.int(limit),
+        memoryTypes
+      });
 
-    return this.gdsSupport;
+      return result.records.map(record => ({
+        id: record.get('id'),
+        score: record.get('score')
+      }));
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Check if it's a GDS-specific error
+      if (errorMessage.includes('gds.similarity') || errorMessage.includes('Unknown function')) {
+        throw new Error(`
+GDS vector search failed. The plugin may have been disabled or removed.
+
+Error: ${errorMessage}
+
+Please verify GDS installation with: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
+        `.trim());
+      }
+      
+      // Re-throw other errors as-is
+      throw new Error(`Vector search query failed: ${errorMessage}`);
+    }
   }
 
-  private cosineSimilarity(a: Vector, b: Vector): number {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || a.length === 0) {
-      return 0;
-    }
-
-    try {
-      let dotProduct = 0;
-      let magnitudeA = 0;
-      let magnitudeB = 0;
-
-      for (let i = 0; i < a.length; i++) {
-        const valA = a[i];
-        const valB = b[i];
-
-        if (typeof valA !== 'number' || typeof valB !== 'number' || 
-            isNaN(valA) || isNaN(valB) || !isFinite(valA) || !isFinite(valB)) {
-          continue;
-        }
-
-        dotProduct += valA * valB;
-        magnitudeA += valA * valA;
-        magnitudeB += valB * valB;
-      }
-
-      magnitudeA = Math.sqrt(magnitudeA);
-      magnitudeB = Math.sqrt(magnitudeB);
-
-      if (magnitudeA === 0 || magnitudeB === 0 || !isFinite(magnitudeA) || !isFinite(magnitudeB)) {
-        return 0;
-      }
-
-      const similarity = dotProduct / (magnitudeA * magnitudeB);
-      return Math.max(-1, Math.min(1, similarity));
-    } catch {
-      return 0;
-    }
+  /**
+   * Get GDS verification status for monitoring
+   */
+  isGDSVerified(): boolean | null {
+    return this.gdsVerified;
   }
 }

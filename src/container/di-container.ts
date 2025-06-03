@@ -14,7 +14,6 @@ import { DeleteMemoryUseCase } from '../application/use-cases/delete-memory';
 import { ManageObservationsUseCase } from '../application/use-cases/manage-observations';
 import { ManageRelationsUseCase } from '../application/use-cases/manage-relations';
 import { XenovaEmbeddingService } from '../infrastructure/services/embedding-service';
-import { TruthFirstSearchOrchestrator } from '../infrastructure/services/search';
 
 export class DIContainer {
   private static instance: DIContainer;
@@ -27,7 +26,6 @@ export class DIContainer {
   
   // Services
   private embeddingService!: XenovaEmbeddingService;
-  private searchOrchestrator!: TruthFirstSearchOrchestrator;
   
   // Repositories
   private memoryRepository!: Neo4jMemoryRepository;
@@ -67,10 +65,7 @@ export class DIContainer {
   private initializeServices(): void {
     this.embeddingService = new XenovaEmbeddingService();
     
-    // Initialize search orchestrator with clean session
-    const searchSession = this.sessionFactory.createSession();
-    this.activeSessions.push(searchSession);
-    this.searchOrchestrator = new TruthFirstSearchOrchestrator(searchSession);
+    // Note: Search orchestrator removed - SimplifiedSearchService used directly in repositories
   }
 
   private initializeRepositories(): void {
@@ -120,10 +115,6 @@ export class DIContainer {
   // Public getters for services
   getEmbeddingService(): XenovaEmbeddingService {
     return this.embeddingService;
-  }
-
-  getSearchOrchestrator(): TruthFirstSearchOrchestrator {
-    return this.searchOrchestrator;
   }
 
   getDatabaseManager(): CleanDatabaseManager {

@@ -1,32 +1,32 @@
 /**
- * Neo4j Search Repository - Truth-First Implementation
- * Single responsibility: Bridge search use case to truth-first orchestrator
+ * Neo4j Search Repository - Simplified Implementation
+ * Single responsibility: Bridge search use case to simplified search service
  * 
- * THE IMPLEMENTOR'S RULE: Replace legacy search with GDD v2.2.0 compliant system
+ * THE IMPLEMENTOR'S RULE: Clean, direct implementation without orchestration theater
  */
 
 import { SearchRepository, SearchRequest, SearchResult } from '../../domain/repositories/search-repository';
 import { SessionFactory } from '../database/session-factory';
-import { TruthFirstSearchOrchestrator, PracticalHybridSearchResult } from '../services/search';
+import { SimplifiedSearchService, SimpleSearchResult } from '../services/search/simplified-search-service';
 
 /**
- * Truth-first search repository implementation
- * Zero fallback architecture with strict GDD v2.2.0 compliance
+ * Simplified search repository implementation
+ * Direct execution with mathematical scoring
  */
 export class Neo4jSearchRepository implements SearchRepository {
   constructor(private sessionFactory: SessionFactory) {}
 
   /**
-   * Execute truth-first search with GDD v2.2.0 compliance
+   * Execute search with simplified service
    * Performance targets: <100ms exact, <500ms vector
    */
   async search(request: SearchRequest): Promise<SearchResult[]> {
     const session = this.sessionFactory.createSession();
     
     try {
-      const orchestrator = new TruthFirstSearchOrchestrator(session);
+      const searchService = new SimplifiedSearchService(session);
       
-      const truthResults = await orchestrator.search(
+      const results = await searchService.search(
         request.query,
         request.limit || 10,
         request.includeGraphContext !== false, // Default true
@@ -34,19 +34,19 @@ export class Neo4jSearchRepository implements SearchRepository {
         request.threshold || 0.1
       );
 
-      // Convert TruthSearchResult to SearchResult format
-      return this.convertToSearchResults(truthResults);
+      // Convert SimpleSearchResult to SearchResult format
+      return this.convertToSearchResults(results);
     } finally {
       await session.close();
     }
   }
 
   /**
-   * Convert practical hybrid results to legacy SearchResult format
+   * Convert simplified results to legacy SearchResult format
    * Maintains backward compatibility with existing use cases
    */
-  private convertToSearchResults(hybridResults: PracticalHybridSearchResult[]): SearchResult[] {
-    return hybridResults.map(result => ({
+  private convertToSearchResults(simpleResults: SimpleSearchResult[]): SearchResult[] {
+    return simpleResults.map(result => ({
       memory: {
         id: result.id,
         name: result.name,
@@ -64,9 +64,9 @@ export class Neo4jSearchRepository implements SearchRepository {
   }
 
   /**
-   * Map practical hybrid match types to legacy match types
+   * Map simple search results to match types
    */
-  private determineMatchType(matchType: 'semantic' | 'exact'): 'vector' | 'metadata' | 'fulltext' {
+  private determineMatchType(matchType: 'semantic' | 'exact'): 'vector' | 'metadata' {
     switch (matchType) {
       case 'semantic':
         return 'vector';
@@ -75,21 +75,5 @@ export class Neo4jSearchRepository implements SearchRepository {
       default:
         return 'vector';
     }
-  }
-
-  /**
-   * Legacy methods - not implemented in truth-first architecture
-   * These throw explicit errors to prevent fallback usage
-   */
-  async vectorSearch(): Promise<SearchResult[]> {
-    throw new Error('Direct vector search not supported in truth-first architecture. Use search() instead.');
-  }
-
-  async metadataSearch(): Promise<SearchResult[]> {
-    throw new Error('Direct metadata search not supported in truth-first architecture. Use search() instead.');
-  }
-
-  async fulltextSearch(): Promise<SearchResult[]> {
-    throw new Error('Direct fulltext search not supported in truth-first architecture. Use search() instead.');
   }
 }

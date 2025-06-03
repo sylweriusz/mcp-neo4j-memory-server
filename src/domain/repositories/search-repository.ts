@@ -16,27 +16,13 @@ export interface SearchRequest {
 export interface SearchResult {
   memory: Memory;
   score: number;
-  matchType: 'vector' | 'metadata' | 'fulltext';
+  matchType: 'vector' | 'metadata';
 }
 
 export interface SearchRepository {
   /**
-   * Perform enhanced unified search
+   * Unified search - the only method needed
+   * Handles all search types: exact, semantic, wildcard
    */
   search(request: SearchRequest): Promise<SearchResult[]>;
-
-  /**
-   * Vector similarity search only
-   */
-  vectorSearch(embedding: number[], threshold: number, limit: number): Promise<SearchResult[]>;
-
-  /**
-   * Metadata exact match search
-   */
-  metadataSearch(metadata: Record<string, any>, limit: number): Promise<SearchResult[]>;
-
-  /**
-   * Fulltext search in content
-   */
-  fulltextSearch(query: string, limit: number): Promise<SearchResult[]>;
 }

@@ -3,7 +3,16 @@
  * Single responsibility: Verify compact ID generation meets GDD specs
  */
 import { describe, it, expect } from 'vitest';
-import { generateCompactId, compressionStats } from '../../src/id_generator';
+import { generateCompactId } from '../../src/id_generator';
+
+// Test-specific compression stats - moved from production code
+const compressionStats = {
+  standardUlidLength: 26,
+  compactIdLength: 18,
+  compressionRatio: 18 / 26,
+  spaceSaved: (26 - 18) / 26,
+  totalCombinations: Math.pow(85, 18).toExponential(2)
+} as const;
 
 describe('ID Generator', () => {
   describe('generateCompactId', () => {
@@ -34,7 +43,7 @@ describe('ID Generator', () => {
 
     it('should only contain valid BASE85 characters', () => {
       const id = generateCompactId();
-      const validChars = /^[0-9A-Za-z!#$%&()*+,\-./:;=?@_{}~<]+$/;
+      const validChars = /^[0-9A-Za-z!#$%&()*+,\-./:;=?@_{}~`]+$/;
       expect(id).toMatch(validChars);
     });
 

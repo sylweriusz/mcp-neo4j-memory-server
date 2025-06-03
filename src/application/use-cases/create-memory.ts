@@ -6,22 +6,19 @@
 import { Memory } from '../../domain/entities/memory';
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { EmbeddingService } from '../../infrastructure/services/embedding-service';
-import { TagExtractionService } from '../../infrastructure/services/tag-extraction-service';
 import { generateCompactId } from '../../id_generator';
 
 export interface CreateMemoryRequest {
   name: string;
   memoryType: string;
   metadata?: Record<string, any>;
-  tags?: string[];
   observations?: string[];
 }
 
 export class CreateMemoryUseCase {
   constructor(
     private memoryRepository: MemoryRepository,
-    private embeddingService: EmbeddingService,
-    private tagExtractionService: TagExtractionService
+    private embeddingService: EmbeddingService
   ) {}
 
   async execute(request: CreateMemoryRequest): Promise<Memory> {
@@ -31,16 +28,6 @@ export class CreateMemoryUseCase {
     // Generate name embedding for semantic search
     const nameEmbedding = await this.embeddingService.calculateEmbedding(request.name);
     
-    // Extract tags automatically (GDD v2.1.2 requirement)
-    const extractedTags = await this.tagExtractionService.extractTags(
-      request.name,
-      request.observations || []
-    );
-    
-    // Combine provided tags with extracted ones
-    const allTags = [...(request.tags || []), ...extractedTags];
-    const uniqueTags = [...new Set(allTags)].slice(0, 6); // Limit to 6 tags max
-    
     // Create domain entity with validation
     const memory = new Memory(
       id,
@@ -49,8 +36,7 @@ export class CreateMemoryUseCase {
       request.metadata || {},
       new Date(),
       new Date(),
-      new Date(),
-      uniqueTags
+      new Date()
     );
 
     // Add nameEmbedding to memory object for persistence

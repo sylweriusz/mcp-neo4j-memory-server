@@ -10,9 +10,8 @@ export interface RelationRequest {
   fromId: string;
   toId: string;
   relationType: string;
-  // BUG #3 FIX: Enhanced metadata fields
+  // Enhanced metadata fields (simplified without context complexity)
   strength?: number;      // 0.0-1.0, defaults to 0.5
-  context?: string[];     // Domain contexts, auto-inferred if not provided
   source?: 'agent' | 'user' | 'system';  // Defaults to 'agent'
 }
 
@@ -31,13 +30,12 @@ export class ManageRelationsUseCase {
       throw new Error(`Target memory with id ${request.toId} not found`);
     }
 
-    // BUG #3 FIX: Enhanced relation creation with metadata
+    // Enhanced relation creation without context complexity
     const enhancedRequest = {
       fromId: request.fromId,
       toId: request.toId,
       relationType: request.relationType,
       strength: request.strength || 0.5,  // Default strength
-      context: request.context || this.inferContext(fromMemory, toMemory),  // Auto-infer if not provided
       source: request.source || 'agent',  // Default source
       createdAt: new Date().toISOString()  // Always system-generated
     };
@@ -59,31 +57,6 @@ export class ManageRelationsUseCase {
       request.toId,
       request.relationType
     );
-  }
-
-  /**
-   * Context inference logic as per GDD v2.1.2+
-   */
-  private inferContext(fromMemory: any, toMemory: any): string[] {
-    const typeContextMap: Record<string, string[]> = {
-      'project': ['development', 'programming'],
-      'research': ['analysis', 'learning'],
-      'creative': ['writing', 'ideation'],
-      'process': ['workflow', 'methodology'],
-      'preference': ['personal', 'configuration'],
-      'review': ['feedback', 'evaluation'],
-      'programming': ['development', 'coding'],
-      'procedure': ['workflow', 'process'],
-      'security': ['cybersecurity', 'protection'],
-      'ai': ['artificial-intelligence', 'machine-learning']
-    };
-    
-    const contexts = new Set([
-      ...(typeContextMap[fromMemory.memoryType] || []),
-      ...(typeContextMap[toMemory.memoryType] || [])
-    ]);
-    
-    return Array.from(contexts);
   }
 
   async executeMany(

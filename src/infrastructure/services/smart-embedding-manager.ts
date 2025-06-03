@@ -32,9 +32,7 @@ export class SmartEmbeddingManager implements EmbeddingManager {
   }
 
   async preloadModel(): Promise<void> {
-    console.error('[EMBEDDING] Preloading model on startup...');
     await this.ensureModel();
-    console.error('[EMBEDDING] Model preloaded successfully');
   }
 
   async calculateEmbedding(text: string): Promise<number[]> {
@@ -53,7 +51,7 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       
       return Array.from(result.data);
     } catch (error) {
-      console.error('❌ Error calculating embedding:', error);
+      console.error('Error calculating embedding:', error);
       throw error;
     }
   }
@@ -99,7 +97,6 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       
       return dotProduct / (mag1 * mag2);
     } catch (error) {
-      console.error("Error calculating similarity:", error);
       return 0;
     }
   }
@@ -123,9 +120,6 @@ export class SmartEmbeddingManager implements EmbeddingManager {
   }
 
   private async loadModel(): Promise<void> {
-    const start = Date.now();
-    console.error(`[EMBEDDING] Loading model: ${this.config.modelName}`);
-    
     try {
       // Determine model name for Xenova transformers
       const modelName = this.config.modelName.startsWith('Xenova/') 
@@ -138,15 +132,13 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       if (this.config.dimensions === 'auto') {
         const testEmbedding = await this.model('test');
         this.modelDimensions = testEmbedding.data.length;
-        console.error(`[EMBEDDING] Auto-detected dimensions: ${this.modelDimensions}`);
       } else {
         this.modelDimensions = this.config.dimensions as number;
       }
       
       this.lastUsed = Date.now();
-      console.error(`[EMBEDDING] Model loaded in ${Date.now() - start}ms, dimensions: ${this.modelDimensions}`);
     } catch (error) {
-      console.error('❌ Failed to load embedding model:', error);
+      console.error('Failed to load embedding model:', error);
       this.model = null;
       this.modelDimensions = 0;
       this.loadingPromise = null;
@@ -161,7 +153,6 @@ export class SmartEmbeddingManager implements EmbeddingManager {
     
     this.cleanupTimer = setTimeout(() => {
       if (Date.now() - this.lastUsed >= this.config.idleTimeout) {
-        console.error('[EMBEDDING] Unloading idle model to free memory');
         this.model = null;
         this.modelDimensions = 0;
         this.cleanupTimer = null;

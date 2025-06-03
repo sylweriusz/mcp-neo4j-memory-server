@@ -26,8 +26,10 @@ export interface EnhancedSearchResult {
   name: string;
   type: string;
   observations: Array<{id?: string, content: string, createdAt: string}>;
-  tags: string[];
   metadata: Record<string, any>;
+  createdAt?: string;      // GDD Section 7.3 requirement
+  modifiedAt?: string;     // GDD Section 7.3 requirement  
+  lastAccessed?: string;   // GDD Section 7.3 requirement
   related?: {
     ancestors?: RelatedMemory[];
     descendants?: RelatedMemory[];
@@ -41,9 +43,8 @@ export interface RelatedMemory {
   type: string;
   relation: string;
   distance: number;
-  // Enhanced relationship metadata (GDD v2.1.2+)
+  // Enhanced relationship metadata (simplified without context complexity)
   strength?: number;      // 0.0-1.0
-  context?: string[];     // Domain contexts
   source?: string;        // "agent" | "user" | "system"
   createdAt?: string;     // ISO timestamp
 }
@@ -59,7 +60,6 @@ export const MemoryObject = z.object({
   modifiedAt: z.string().optional().describe("ISO timestamp when memory was last modified"),
   lastAccessed: z.string().optional().describe("ISO timestamp when memory was last accessed"),
   nameEmbedding: z.array(z.number()).optional().describe("Vector embedding of memory name for semantic search"),
-  tags: z.array(z.string()).optional().describe("Array of tags associated with the memory"),
   observations: z
     .array(z.string())
     .describe("An array of observation contents associated with the memory"),
@@ -88,7 +88,6 @@ export type MemoryResponse = {
   createdAt?: string;
   modifiedAt?: string;
   lastAccessed?: string;
-  tags?: string[];
   observations: Array<{id?: string, content: string, createdAt: string}>;
   related?: { // Graph context from relationships
     ancestors?: RelatedMemory[];

@@ -16,7 +16,7 @@ export interface SearchRequest {
 export interface SearchResult {
   memory: Memory;
   score: number;
-  matchType: 'vector' | 'metadata' | 'fulltext' | 'tag';
+  matchType: 'vector' | 'metadata' | 'fulltext';
 }
 
 export interface SearchRepository {
@@ -39,9 +39,4 @@ export interface SearchRepository {
    * Fulltext search in content
    */
   fulltextSearch(query: string, limit: number): Promise<SearchResult[]>;
-
-  /**
-   * Tag-based search
-   */
-  tagSearch(tags: string[], limit: number): Promise<SearchResult[]>;
 }

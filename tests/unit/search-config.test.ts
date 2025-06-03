@@ -1,6 +1,7 @@
 /**
  * Search Config Tests
  * Single responsibility: Verify search configuration defaults and structure
+ * CURRENT REALITY: No tag system - only vector, metadataExact, metadataFulltext weights
  */
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_SEARCH_CONFIG, SearchConfig } from '../../src/domain/entities/search-config';
@@ -12,31 +13,23 @@ describe('Search Config', () => {
       expect(DEFAULT_SEARCH_CONFIG.weights.vector).toBeDefined();
       expect(DEFAULT_SEARCH_CONFIG.weights.metadataExact).toBeDefined();
       expect(DEFAULT_SEARCH_CONFIG.weights.metadataFulltext).toBeDefined();
-      expect(DEFAULT_SEARCH_CONFIG.weights.tags).toBeDefined();
     });
 
     it('should have weights that sum to 1.0', () => {
-      const { vector, metadataExact, metadataFulltext, tags } = DEFAULT_SEARCH_CONFIG.weights;
-      const sum = vector + metadataExact + metadataFulltext + tags;
+      const { vector, metadataExact, metadataFulltext } = DEFAULT_SEARCH_CONFIG.weights;
+      const sum = vector + metadataExact + metadataFulltext;
       expect(sum).toBeCloseTo(1.0, 5);
     });
 
     it('should have vector as the highest weight', () => {
-      const { vector, metadataExact, metadataFulltext, tags } = DEFAULT_SEARCH_CONFIG.weights;
+      const { vector, metadataExact, metadataFulltext } = DEFAULT_SEARCH_CONFIG.weights;
       expect(vector).toBeGreaterThan(metadataExact);
       expect(vector).toBeGreaterThan(metadataFulltext);
-      expect(vector).toBeGreaterThan(tags);
     });
 
     it('should have metadataExact as the second highest weight', () => {
-      const { metadataExact, metadataFulltext, tags } = DEFAULT_SEARCH_CONFIG.weights;
+      const { metadataExact, metadataFulltext } = DEFAULT_SEARCH_CONFIG.weights;
       expect(metadataExact).toBeGreaterThan(metadataFulltext);
-      expect(metadataExact).toBeGreaterThan(tags);
-    });
-
-    it('should have metadataFulltext as the third highest weight', () => {
-      const { metadataFulltext, tags } = DEFAULT_SEARCH_CONFIG.weights;
-      expect(metadataFulltext).toBeGreaterThan(tags);
     });
 
     it('should have a threshold between 0 and 1', () => {
@@ -59,20 +52,18 @@ describe('Search Config', () => {
     it('should allow custom configuration', () => {
       const customConfig: SearchConfig = {
         weights: {
-          vector: 0.4,
+          vector: 0.5,
           metadataExact: 0.3,
-          metadataFulltext: 0.2,
-          tags: 0.1
+          metadataFulltext: 0.2
         },
         threshold: 0.2,
         maxGraphDepth: 3,
         maxRelatedItems: 5
       };
 
-      expect(customConfig.weights.vector).toBe(0.4);
+      expect(customConfig.weights.vector).toBe(0.5);
       expect(customConfig.weights.metadataExact).toBe(0.3);
       expect(customConfig.weights.metadataFulltext).toBe(0.2);
-      expect(customConfig.weights.tags).toBe(0.1);
       expect(customConfig.threshold).toBe(0.2);
       expect(customConfig.maxGraphDepth).toBe(3);
       expect(customConfig.maxRelatedItems).toBe(5);
@@ -80,8 +71,7 @@ describe('Search Config', () => {
       // Weights should still sum to 1.0
       const sum = customConfig.weights.vector + 
                   customConfig.weights.metadataExact + 
-                  customConfig.weights.metadataFulltext + 
-                  customConfig.weights.tags;
+                  customConfig.weights.metadataFulltext;
       expect(sum).toBeCloseTo(1.0, 5);
     });
   });

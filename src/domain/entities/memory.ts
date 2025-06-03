@@ -11,8 +11,7 @@ export class Memory {
     public readonly metadata: Record<string, any> = {},
     public readonly createdAt: Date = new Date(),
     public modifiedAt: Date = new Date(),
-    public lastAccessed: Date = new Date(),
-    public readonly tags: string[] = []
+    public lastAccessed: Date = new Date()
   ) {
     this.validateMemory();
   }
@@ -32,10 +31,6 @@ export class Memory {
     if (!this.memoryType || this.memoryType.trim().length === 0) {
       throw new Error('Memory type is required');
     }
-
-    if (this.tags.length > 6) {
-      throw new Error('Memory cannot have more than 6 tags');
-    }
   }
 
   /**
@@ -49,8 +44,7 @@ export class Memory {
       this.metadata,
       this.createdAt,
       this.modifiedAt,
-      new Date(),
-      this.tags
+      new Date()
     );
   }
 
@@ -65,8 +59,7 @@ export class Memory {
       { ...this.metadata, ...newMetadata },
       this.createdAt,
       new Date(),
-      this.lastAccessed,
-      this.tags
+      this.lastAccessed
     );
   }
 }

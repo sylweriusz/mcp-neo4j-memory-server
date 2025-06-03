@@ -2,7 +2,7 @@
  * Clean Database Manager
  * Single responsibility: database switching and management
  */
-import { Neo4jDriverManager } from './neo4j-driver-manager';
+import { Neo4jDriverManager } from './neo4j-driver';
 import { SessionFactory } from './session-factory';
 import { IndexManager } from './index-manager';
 import { DatabaseInfo } from '../../types';
@@ -84,10 +84,7 @@ export class CleanDatabaseManager {
     try {
       const hasSchema = await indexManager.hasRequiredSchema();
       if (!hasSchema) {
-        console.error("[CleanDatabaseManager] Schema missing, initializing...");
         await indexManager.initializeSchema();
-      } else {
-        console.error("[CleanDatabaseManager] Schema verified, skipping initialization");
       }
     } finally {
       await userSession.close();

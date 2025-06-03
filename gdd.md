@@ -1,4 +1,4 @@
-# Graph Database Design (GDD) - Version 2.0.13
+# Graph Database Design (GDD) - Version 2.2.0
 
 ## 1. Core Data Model
 
@@ -15,7 +15,6 @@
     - `modifiedAt` (ISO timestamp): Last memory modification time
     - `lastAccessed` (ISO timestamp): Last retrieval time
     - `nameEmbedding` (float array): Vector embedding for semantic search
-    - `tags` (string array): Automatically extracted tags
 
 - `Observation`: Discrete information fragments (narrative content)
   - Properties:
@@ -24,12 +23,7 @@
     - `createdAt` (ISO timestamp): When observation was created
     - `source` (string, optional): Origin of information 
     - `confidence` (number, optional): Trust level (0.0-1.0)
-    - `embedding` (float array, optional): Vector embedding (only stored if needed)
-
-- `Tag`: Extracted keywords
-  - Properties:
-    - `name` (string, unique): Tag identifier
-    - `embedding` (float array): Vector embedding for semantic deduplication
+    - `embedding` (float array, optional): Vector embedding
 
 #### Relationship Types
 - `HAS_OBSERVATION`:
@@ -38,30 +32,21 @@
     - `createdAt` (ISO timestamp): When relationship was created
     - `source` (string): Always "system" - automatically created during observation addition
 
-- `HAS_TAG`:
-  - Direction: `(Memory)-[:HAS_TAG]->(Tag)`
-  - Properties:
-    - `createdAt` (ISO timestamp): When relationship was created  
-    - `source` (string): Always "system" - automatically created during tag extraction
-
 - `RELATES_TO`:
   - Direction: `(Memory)-[:RELATES_TO]->(Memory)`
   - Properties:
     - `relationType` (string): Relationship classifier (INFLUENCES, DEPENDS_ON, etc.)
     - `strength` (float, 0.0-1.0): Relationship strength/importance
-    - `context` (string array): Domain contexts where relationship applies
     - `source` (string): Origin of relationship ("agent", "user", "system")
     - `createdAt` (ISO timestamp): When relationship was created
 
 #### Constraints
 - Memory ID uniqueness: `CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE`
 - Memory name+type uniqueness: Enforced programmatically
-- Tag name uniqueness: `CREATE CONSTRAINT IF NOT EXISTS FOR (t:Tag) REQUIRE t.name IS UNIQUE`
 
 #### Indexes
 - Memory name vector index: `CREATE VECTOR INDEX memory_name_vector_idx FOR (m:Memory) ON (m.nameEmbedding)`
 - Memory metadata full-text index: `CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]`
-- Tag name index: `CREATE INDEX tag_name_idx FOR (t:Tag) ON (t.name)`
 
 ### 1.2 TypeScript Interface Model
 
@@ -76,7 +61,6 @@ type Memory = {
   modifiedAt?: string;     // ISO timestamp of last modification
   lastAccessed?: string;   // ISO timestamp of last access
   nameEmbedding?: number[]; // Vector embedding for semantic search
-  tags?: string[];         // Extracted tags (maximum 6 per memory)
   observations: Array<{    // Observation objects with temporal context
     content: string;       // Observation text content
     createdAt: string;     // When observation was created
@@ -97,7 +81,6 @@ type Relation = {
   
   // Enhanced metadata (v2.0.12+)
   strength: number;      // Relationship strength 0.0-1.0 (default: 0.5)
-  context: string[];     // Domain contexts ["programming", "research", etc.]
   source: "agent" | "user" | "system";  // Relationship origin (default: "agent")
   createdAt: string;     // ISO timestamp of creation (system-generated)
 }
@@ -111,13 +94,6 @@ type ObservationNode = {
   source?: string;      // Origin of information
   confidence?: number;  // Trust level (0.0-1.0)
   embedding?: number[]; // Vector embedding (optional)
-}
-```
-
-#### Tag
-```typescript
-type Tag = {
-  name: string;        // Unique tag identifier
 }
 ```
 
@@ -138,7 +114,7 @@ type KnowledgeGraph = {
 
 ### 2.1 Memory Creation
 1. Create Memory node with id, name, memoryType, metadata (optional), timestamps
-2. Calculate name embedding and extract tags
+2. Calculate name embedding
 3. Create Observation nodes with content and timestamps
 4. Connect Memory to Observations with HAS_OBSERVATION relationships
 
@@ -157,45 +133,18 @@ type KnowledgeGraph = {
    - Determine `source`: Agent-provided "user" OR default "agent"
    - Set `createdAt`: Current ISO timestamp (system-generated)
 
-2. **Memory-to-Tag Relations** (automatic during memory creation/update):
-   - Created by tag extraction service during memory processing
-   - `source`: Always "system"
-   - `createdAt`: Current ISO timestamp when tags are extracted
-
-3. **Memory-to-Observation Relations** (automatic during observation management):
+2. **Memory-to-Observation Relations** (automatic during observation management):
    - Created during `observation_manage` "add" operations
    - `source`: Always "system" 
    - `createdAt`: Current ISO timestamp when observation is added
 
-### 2.4 Context Inference Logic
-When agent does not provide explicit `context` array:
-```typescript
-function inferContext(fromMemory: Memory, toMemory: Memory): string[] {
-  const typeContextMap = {
-    'project': ['development', 'programming'],
-    'research': ['analysis', 'learning'],
-    'creative': ['writing', 'ideation'],
-    'process': ['workflow', 'methodology'],
-    'preference': ['personal', 'configuration'],
-    'review': ['feedback', 'evaluation']
-  };
-  
-  const contexts = new Set([
-    ...(typeContextMap[fromMemory.memoryType] || []),
-    ...(typeContextMap[toMemory.memoryType] || [])
-  ]);
-  
-  return Array.from(contexts);
-}
-```
-
-### 2.5 Source Determination Logic
+### 2.4 Source Determination Logic
 ```typescript
 function determineSource(relationRequest: RelationRequest): string {
   // 1. Explicit agent specification takes precedence
   if (relationRequest.source === "user") return "user";
   
-  // 2. System-generated relationships (tags, observations)
+  // 2. System-generated relationships (observations)
   if (relationRequest.isSystemGenerated) return "system";
   
   // 3. Default: agent-initiated relationship
@@ -234,12 +183,11 @@ WITH m, ancestors, collect(DISTINCT {
 
 // Core content with ordered observations
 OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
-OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
 RETURN m.id AS id, m.name AS name, m.memoryType AS memoryType,
        m.metadata AS metadata, m.createdAt AS createdAt, m.modifiedAt AS modifiedAt,
        m.lastAccessed AS lastAccessed, 
        [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) | obs] as observations,
-       collect(t.name) AS tags, ancestors, descendants
+       ancestors, descendants
 ```
 
 ### 3.2 Memory Creation
@@ -252,24 +200,14 @@ CREATE (m:Memory {
   createdAt: $createdAt,
   modifiedAt: $modifiedAt,
   lastAccessed: $createdAt,
-  nameEmbedding: $nameEmbedding,
-  tags: $tags
+  nameEmbedding: $nameEmbedding
 })
 RETURN m
 ```
 
 ### 3.3 Vector Search
 ```cypher
-// Enterprise Edition
-MATCH (m:Memory)
-WHERE m.nameEmbedding IS NOT NULL
-WITH m, vector.similarity(m.nameEmbedding, $queryVector) AS score
-WHERE score >= $threshold
-ORDER BY score DESC
-LIMIT $limit
-RETURN m.id, m.name, score
-
-// GDS Version (Community Edition)
+// GDS Plugin (Recommended)
 MATCH (m:Memory)
 WHERE m.nameEmbedding IS NOT NULL
 WITH m, gds.similarity.cosine(m.nameEmbedding, $queryVector) AS score
@@ -281,6 +219,7 @@ RETURN m.id, m.name, score
 // In-Memory Fallback
 MATCH (m:Memory)
 WHERE m.nameEmbedding IS NOT NULL
+RETURN m.id, m.name, m.nameEmbedding
 RETURN m.id, m.name, m.nameEmbedding
 ```
 
@@ -312,12 +251,10 @@ WITH m, ancestors, collect(DISTINCT {
 
 // Core content with ordered observations
 OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
-OPTIONAL MATCH (m)-[:HAS_TAG]->(t:Tag)
 
 RETURN m.id as id, m.name as name, m.memoryType as type, 
        m.metadata as metadata, m.nameEmbedding as embedding,
        [obs IN collect(DISTINCT {content: o.content, createdAt: o.createdAt}) | obs] as observations,
-       collect(DISTINCT t.name)[0..3] as tags,
        ancestors, descendants
 ```
 
@@ -328,9 +265,9 @@ MATCH (from:Memory {id: $fromId}), (to:Memory {id: $toId})
 CREATE (from)-[:RELATES_TO {
   relationType: $relationType,
   strength: $strength,
-  context: $context,
   source: $source,
   createdAt: $createdAt
+}]->(to)
 }]->(to)
 ```
 
@@ -339,10 +276,6 @@ CREATE (from)-[:RELATES_TO {
 // Delete observations
 MATCH (m:Memory {id: $memoryId})-[:HAS_OBSERVATION]->(o:Observation)
 DETACH DELETE o
-
-// Delete tag relationships  
-MATCH (m:Memory {id: $memoryId})-[r:HAS_TAG]->()
-DELETE r
 
 // Delete memory relations
 MATCH (m:Memory {id: $memoryId})-[r:RELATES_TO]-()
@@ -355,22 +288,159 @@ MATCH (m:Memory {id: $memoryId})
 DELETE m
 ```
 
-## 4. Search Implementation
+## 4. Search Implementation (REVISED v2.2.0)
 
-### 4.1 Enhanced Unified Search Strategy
-- Vector similarity: 50% weight - primary semantic understanding
-- Metadata exact matching: 25% weight - high-value exact matches
-- Metadata fulltext: 15% weight - supporting fulltext context  
-- Tag matching: 10% weight - supporting keyword context
-- Graph context: Integrated 2-level relationship traversal with exact relation types
-- AI-optimized response: Minimal data transfer with essential context
-- **Limit enforcement**: All queries honor the limit parameter, including wildcard "*" and empty "" queries
-- **Ordered observations**: Retrieved observations are sorted chronologically (oldest to newest) by createdAt timestamp
+### 4.1 Truth-First Search Architecture
 
-### 4.2 Vector Search Support
-- **Enterprise Edition**: Native `vector.similarity()` function
-- **GDS Plugin**: `gds.similarity.cosine()` function  
-- **In-Memory Fallback**: TypeScript cosine similarity implementation
+#### Query Classification Engine
+```typescript
+interface QueryIntent {
+  type: 'wildcard' | 'technical_identifier' | 'exact_search' | 'semantic_search';
+  confidence: number;
+  preprocessing: QueryPreprocessing;
+}
+
+interface QueryPreprocessing {
+  normalized: string;        // Lowercase normalized query
+  isSpecialPattern: boolean; // UUID, version numbers, base64-like
+  requiresExactMatch: boolean;
+}
+```
+
+**Classification Rules:**
+- `query === "*" || query === ""` → wildcard retrieval
+- `query.match(/^[0-9a-f-]{36}$/i)` → technical_identifier (UUID)
+- `query.match(/^v?\d+\.\d+\.\d+/)` → technical_identifier (version)
+- `query.match(/^[A-Za-z0-9+/=]+$/) && query.length > 8` → technical_identifier (base64-like)
+- `query.match(/^[^a-zA-Z]*$/)` → exact_search (numbers/symbols only)
+- Otherwise → semantic_search
+
+#### Truth Hierarchy System
+```typescript
+enum TruthLevel {
+  PERFECT_TRUTH = 1.0,      // Exact metadata + long query OR exact name match
+  HIGH_CONFIDENCE = 0.9,    // Exact metadata match
+  EXACT_NAME = 0.85,        // Exact name match
+  EXACT_CONTENT = 0.8,      // Exact observation content match
+  SEMANTIC_CAP = 0.75       // Maximum for semantic similarity
+}
+```
+
+**Perfect Truth Detection:**
+- Exact metadata match AND query.length > 10 → PERFECT_TRUTH
+- Exact name match AND normalized(query) === normalized(name) → PERFECT_TRUTH
+- All other exact matches capped at their respective truth levels
+
+### 4.2 Multi-Channel Search Pipeline
+
+#### Phase 1: Case-Insensitive Candidate Collection
+```cypher
+// All text matching uses case-insensitive CONTAINS
+WHERE toLower(m.metadata) CONTAINS toLower($query)
+   OR toLower(m.name) CONTAINS toLower($query)
+   OR EXISTS {
+     MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
+     WHERE toLower(o.content) CONTAINS toLower($query)
+   }
+```
+
+#### Phase 2: Channel-Specific Scoring
+- **Vector Semantic**: Real similarity score × 0.55 (capped at SEMANTIC_CAP)
+- **Exact Metadata**: TruthLevel.HIGH_CONFIDENCE or TruthLevel.PERFECT_TRUTH
+- **Exact Name**: TruthLevel.EXACT_NAME or TruthLevel.PERFECT_TRUTH  
+- **Exact Content**: TruthLevel.EXACT_CONTENT
+
+#### Phase 3: Composite Score Calculation
+```typescript
+function calculateTruthScore(
+  memory: SearchCandidate,
+  query: QueryIntent,
+  vectorScore?: number
+): number {
+  // Perfect truth always wins
+  if (memory.hasPerfectMatch(query)) {
+    return TruthLevel.PERFECT_TRUTH;
+  }
+  
+  // High confidence exact matches
+  if (memory.hasExactMetadata) return TruthLevel.HIGH_CONFIDENCE;
+  if (memory.hasExactName) return TruthLevel.EXACT_NAME;
+  if (memory.hasExactContent) return TruthLevel.EXACT_CONTENT;
+  
+  // Semantic scoring (capped)
+  const semanticBase = (vectorScore || 0) * 0.55;
+  const contentBonus = memory.contentMatchBonus * 0.25;
+  const nameBonus = memory.namePartialBonus * 0.20;
+  
+  return Math.min(semanticBase + contentBonus + nameBonus, TruthLevel.SEMANTIC_CAP);
+}
+```
+
+### 4.3 Truth-First Search Cypher Pattern
+```cypher
+// Truth-first search with case normalization
+MATCH (m:Memory)
+WHERE ($memoryTypes IS NULL OR m.memoryType IN $memoryTypes)
+  AND (
+    // Case-insensitive exact matching channels
+    toLower(m.metadata) CONTAINS toLower($query) OR
+    toLower(m.name) CONTAINS toLower($query) OR
+    EXISTS {
+      MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
+      WHERE toLower(o.content) CONTAINS toLower($query)
+    }
+    // Vector candidates will be merged separately for performance
+  )
+
+// Truth level detection with perfect match identification
+WITH m, 
+     // Perfect truth detection
+     CASE WHEN toLower(m.metadata) CONTAINS toLower($query) AND length($query) > 10 THEN 1.0
+          WHEN toLower(m.name) = toLower($query) THEN 1.0
+          WHEN toLower(m.metadata) CONTAINS toLower($query) THEN 0.9
+          WHEN toLower(m.name) CONTAINS toLower($query) THEN 0.85
+          ELSE 0.0 END as exactScore,
+     
+     // Vector similarity (capped at semantic limit)
+     CASE WHEN m.nameEmbedding IS NOT NULL 
+          THEN LEAST(gds.similarity.cosine(m.nameEmbedding, $queryVector) * 0.55, 0.75)
+          ELSE 0.0 END as semanticScore
+
+// Final scoring with truth supremacy
+WITH m, 
+     CASE WHEN exactScore > 0 THEN exactScore
+          ELSE semanticScore END as finalScore
+
+WHERE finalScore >= $threshold
+ORDER BY finalScore DESC, m.createdAt DESC
+LIMIT $limit
+```
+
+### 4.4 Edge Case Handling Protocol
+
+#### No Results Scenario
+- Return empty array immediately
+- Log query classification for analysis
+
+#### Overwhelming Results Management  
+- Prioritize exact matches first
+- Apply stricter vector threshold dynamically
+- Respect limit parameter absolutely (GDD 8.1 compliance)
+
+#### Memory Type Filtering
+- Apply at Cypher query level using `WHERE m.memoryType IN $memoryTypes`
+- Combine with search criteria using AND logic
+- Maintain through all search phases
+
+### 4.5 Truth Search Response Format
+```typescript
+interface TruthSearchResult extends EnhancedSearchResult {
+  score: number;           // Final truth score
+  truthLevel: TruthLevel;  // Classification of match quality
+  matchReason: string;     // "exact_metadata" | "exact_name" | "exact_content" | "semantic"
+  rawVectorScore?: number; // Original similarity score for debugging
+}
+```
 
 ## 5. Database Management
 
@@ -385,7 +455,6 @@ DELETE m
 ```cypher
 // Core constraints
 CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE
-CREATE CONSTRAINT IF NOT EXISTS FOR (t:Tag) REQUIRE t.name IS UNIQUE
 
 // Performance indexes
 CREATE INDEX IF NOT EXISTS memory_type_idx FOR (m:Memory) ON (m.memoryType)
@@ -393,12 +462,11 @@ CREATE INDEX IF NOT EXISTS memory_name_idx FOR (m:Memory) ON (m.name)
 CREATE INDEX IF NOT EXISTS memory_accessed_idx FOR (m:Memory) ON (m.lastAccessed)
 CREATE FULLTEXT INDEX IF NOT EXISTS observation_content FOR (o:Observation) ON EACH [o.content]
 CREATE INDEX IF NOT EXISTS relation_type_idx FOR ()-[r:RELATES_TO]-() ON (r.relationType)
-CREATE INDEX IF NOT EXISTS tag_name_idx FOR (t:Tag) ON (t.name)
 
 // Metadata indexes
 CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]
 
-// Vector indexes (Enterprise Edition)
+// Vector indexes (DozerDB with GDS Plugin - optional but recommended)
 CREATE VECTOR INDEX IF NOT EXISTS memory_name_vector_idx 
 FOR (m:Memory) ON (m.nameEmbedding)
 OPTIONS {indexConfig: {
@@ -435,123 +503,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **Cold Start**: 2-3 seconds for model reload from disk cache
 - **Storage**: Models cached locally after first download (~300-500MB disk space)
 - **Initialization**: Model verified and pre-downloaded during system startup
-
-## 6. Tag Management System
-
-### 6.1 Enhanced Tag Extraction v2.1 Implementation
-- **Multilingual Stopwords**: Professional extraction from comprehensive dictionary sources (20,000+ stopwords)
-- **Fixed POS Tagging**: compromise.js processing BEFORE text lowercasing to preserve proper nouns
-- **Enhanced Technical Term Detection**: Extended regex patterns for React.js, APIs, compound words
-- **Observations Integration**: 60% weight from memory name, 40% from observations content
-- **6-Tag Target**: Maximum 6 quality tags per memory (up from 3-5)
-- **Semantic Deduplication**: Vector similarity to remove redundant tags with database caching
-
-### 6.2 Architecture & Implementation
-- **Extracted Stopwords Integration**: 20,000+ stopwords across 52 languages from professional extraction
-- **compromise.js POS Tagging**: Professional noun phrase extraction
-- **Enhanced Pattern Recognition**: Technical terms and compound words  
-- **Preserved Semantic Engine**: Database-cached embeddings for deduplication
-- **Domain-Agnostic Design**: Works equally well for biology, tech, art, etc.
-
-### 6.3 Core Processing Pipeline
-```typescript
-// 1. Import extracted stopwords for 20,000+ multilingual stopwords
-import { getCombinedStopwords } from '../data/index.js';
-
-async function getMultilingualStopwords(): Promise<Set<string>> {
-  const languages = ['en', 'pl', 'de', 'fr', 'es', 'it'];
-  return await getCombinedStopwords(languages);
-}
-}
-
-// 2. Fixed POS Tagging Sequence (BEFORE lowercasing)
-function extractNounsAdvanced(text: string): string[] {
-  const doc = nlp(text); // Process original text first
-  
-  // Extract proper nouns BEFORE lowercasing
-  const properNouns = doc.people().concat(doc.places()).concat(doc.organizations())
-    .out('array').filter(noun => noun.length > 2);
-  
-  // Then extract common nouns
-  const commonNouns = doc.nouns().out('array')
-    .filter(noun => noun.length > 2)
-    .map(noun => noun.toLowerCase());
-    
-  return [...properNouns, ...commonNouns];
-}
-
-// 3. Enhanced Technical Term Detection
-const technicalPatterns = [
-  /\b[A-Z][a-zA-Z]*\.js\b/g,              // React.js, Vue.js, Node.js
-  /\b[A-Z][a-zA-Z]*\.[a-zA-Z]+\b/g,       // TensorFlow.js, D3.js
-  /\b[A-Z]{3,}-[A-Z][a-z0-9]+\b/g,        // CRISPR-Cas9, RNA-seq
-  /\b[A-Z][a-zA-Z]+-[A-Z][a-zA-Z]+\b/g,   // Weber-Schmidt
-  /\b[A-Z]{2,}\d*\b/g,                     // API, HTTP, ES2024
-  /\b[a-zA-Z]+-[a-zA-Z]+(?:-[a-zA-Z]+)*\b/g  // machine-learning
-];
-
-// 4. Observations Integration (60% name, 40% observations)
-const weightedCandidates = [
-  ...nameTags.map(tag => ({ tag, weight: 1.5 })),      // Name priority
-  ...observationTags.map(tag => ({ tag, weight: 1.0 })) // Observation support
-];
-
-// 5. 6-Tag Target with Semantic Deduplication
-const finalTags = await semanticDeduplicationWithCache(session, candidateNames, 0.75);
-return finalTags.slice(0, 6);
-```
-
-### 6.4 Quality Improvements over Previous Versions
-- **40%+ Better Coverage**: 6000+ stopwords vs 80 custom words
-- **Intelligent Noun Extraction**: POS tagging vs regex patterns  
-- **Technical Term Support**: Handles React.js, APIs, compound words
-- **Multi-Domain Performance**: Works equally well across all subject areas
-- **Faster Processing**: No language detection overhead
-- **Maintainable Code**: Clean architecture, fewer edge cases
-
-### 6.5 Dependencies & Libraries
-- **Extracted Stopwords**: Professional extraction across 52 languages from comprehensive dictionaries
-- **compromise**: Lightweight POS tagging and noun extraction
-- **xenova/transformers**: Semantic similarity for deduplication
-- **No Node-NLP**: Removed complex NLP dependency for simpler approach
-
-### 6.6 Tag Quality Examples
-
-#### Technical Content:
-```
-Input: "Building React.js application with PostgreSQL database and Redis caching"
-Output: ["react.js", "postgresql", "redis", "application", "caching"]
-```
-
-#### Scientific Content:
-```
-Input: "CRISPR gene editing targets specific DNA sequences in mammalian cells"
-Output: ["crispr", "gene editing", "dna sequences", "mammalian cells"]
-```
-
-#### Multi-language Content:
-```
-Input: "Tworzenie aplikacji mobilnej z React Native i Firebase backend"
-Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
-```
-
-### 6.7 Performance Characteristics
-- **Tag Extraction**: 20-50ms per memory (down from 100-200ms)
-- **Database Caching**: 95%+ hit rate for tag embeddings
-- **Memory Usage**: 60% lower than Node-NLP approach
-- **Quality Consistency**: Stable across all domain types
-
-### 6.8 Temporal Tag Drift
-- **New Tag Preference**: When observations are added, new tag candidates receive a 10% weight boost (1.1x multiplier)
-- **Rationale**: Maintains tag relevance by slightly favoring recent context while preserving historical accuracy
-- **Implementation**: Apply 1.1x weight multiplier to tags extracted from new observations during re-extraction
-
-### 6.9 Tag Embedding Storage (v2.0.13)
-- **Design Principle**: Store embeddings directly in Tag nodes, analogous to Memory.nameEmbedding pattern
-- **Property**: `Tag.embedding` (float array) - Vector embedding for semantic deduplication
-- **Performance Goal**: Cache hit rate >95% for tag similarity calculations
-- **Storage Pattern**: Always stored for consistent performance
-- **Rationale**: Eliminates repeated embedding calculations during tag similarity operations
 
 ## 7. API Interface
 
@@ -617,7 +568,6 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
       
       // Optional metadata (for "create" operation only):
       "strength": "number",                  // 0.0-1.0, defaults to 0.5
-      "context": ["string"],                 // Domain contexts, auto-inferred if not provided
       "source": "agent" | "user" | "system" // Defaults to "agent", agent can specify "user"
       
       // Note: createdAt is always system-generated
@@ -645,7 +595,7 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 **Source Attribution Strategy:**
 - `"agent"`: Default - when you analyze content and identify meaningful connections
 - `"user"`: When user explicitly requests "Connect A to B" or "A is related to B"  
-- `"system"`: Reserved for automatic tag/observation relationships
+- `"system"`: Reserved for automatic relationships
 
 **Temporal Intelligence Applications:**
 - **Evolution tracking**: "How did this approach change over time?" (sort relations by createdAt)
@@ -777,7 +727,6 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
           "createdAt": "2025-05-25T10:00:00Z"
         }
       ],
-      "tags": ["machine-learning", "tensorflow"],
       "metadata": { "status": "active" },
       "createdAt": "2025-05-25T09:00:00Z",
       "modifiedAt": "2025-05-25T10:00:00Z",
@@ -867,7 +816,7 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **IMPLEMENTATION**:
   - "agent": Default for agent-initiated relationships based on content analysis
   - "user": When agent explicitly indicates user requested the connection
-  - "system": Automatic relationships (tags, observations, future similarity detection)
+  - "system": Automatic relationships (observations, future similarity detection)
 - **CONSISTENCY**: Source determination logic MUST be applied uniformly across all relationship creation paths
 
 ### 8.8 Context Inference Intelligence  
@@ -907,7 +856,30 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **PATTERN**: "Track each item's fate individually, summarize collectively"
 - **ERROR GRANULARITY**: Each failed operation must identify the specific ID and reason for failure
 
-These requirements are CRITICAL for user experience and data integrity. Any deviation from these standards constitutes a functional bug that must be addressed immediately.
+### 8.12 Truth-First Search Requirements (NEW v2.2.0)
+- **REQUIREMENT**: Perfect truth matches MUST always score 1.0
+- **REQUIREMENT**: Semantic matches MUST be capped at 0.75
+- **IMPLEMENTATION**: Enforce in score calculation function with explicit caps
+
+### 8.13 Case Normalization Standards (NEW v2.2.0)
+- **REQUIREMENT**: All text comparisons MUST use `toLower()` normalization
+- **REQUIREMENT**: Original casing MUST be preserved in responses
+- **IMPLEMENTATION**: Normalize at query time, preserve at response time
+
+### 8.14 Query Classification Accuracy (NEW v2.2.0)
+- **REQUIREMENT**: Technical identifiers MUST trigger exact matching bias
+- **REQUIREMENT**: Wildcard queries MUST bypass semantic search entirely
+- **IMPLEMENTATION**: Pre-process all queries through classification engine
+
+### 8.15 Zero Fallback Architecture (NEW v2.2.0)
+- **REQUIREMENT**: Failed searches MUST return empty results, not approximations
+- **REQUIREMENT**: Search failures MUST be logged for pipeline improvement
+- **IMPLEMENTATION**: No rescue mechanisms that mask true search failures
+
+### 8.16 Performance Optimization (NEW v2.2.0)
+- **REQUIREMENT**: Exact match queries MUST complete in <100ms
+- **REQUIREMENT**: Vector queries MUST complete in <500ms
+- **IMPLEMENTATION**: Use separate Cypher queries for exact vs semantic channels
 
 ## 9. Strategic Relationship Intelligence Guidelines
 
@@ -920,12 +892,7 @@ These requirements are CRITICAL for user experience and data integrity. Any devi
    - "Is this a core dependency (0.8+) or loose association (0.3-)?"
    - "Would removing this connection fundamentally change understanding?"
 
-2. **Context Relevance**:
-   - "In which domains does this relationship matter?"
-   - "Should this connection appear when filtering by 'programming' vs 'creative'?"
-   - "Does this span multiple contexts or stay within one domain?"
-
-3. **Source Attribution**:
+2. **Source Attribution**:
    - "Did the user explicitly request this connection?"
    - "Am I inferring this from content analysis?"
    - "Is this a pattern I discovered vs user instruction?"
@@ -938,49 +905,25 @@ These requirements are CRITICAL for user experience and data integrity. Any devi
 - **Influence tracing**: "Which earlier insights shaped later conclusions?"
 - **Pattern emergence**: "When did this connection between domains first appear?"
 
-### 9.3 Cross-Domain Intelligence Strategy
-
-**Leverage Context Arrays To:**
-- **Bridge disciplines**: Connect programming patterns to writing workflows
-- **Identify transferable insights**: Research methodologies applicable to creative projects
-- **Surface unexpected connections**: Business processes that inform technical architecture
-- **Enable domain filtering**: "Show only programming-related relationships for this memory"
-
-### 9.4 Relationship Quality Optimization
+### 9.3 Relationship Quality Optimization
 
 **High-Value Relationship Patterns:**
-- **Strong + Specific Context**: Major influences within clear domain boundaries
-- **Medium + Cross-Context**: Insights that transfer between disciplines  
 - **Temporal Clustering**: Related decisions made within similar timeframes
 - **User-Validated**: Connections explicitly confirmed by user feedback
 
 **Avoid Low-Value Patterns:**
-- **Weak + Generic Context**: Vague connections without clear domain relevance
 - **High Strength + Minimal Evidence**: Overstating relationship importance
-- **Context Explosion**: Adding too many contexts without clear rationale
 - **Temporal Inconsistency**: Recent relationships claiming historical influence
 
 ### 9.5 Intelligence Amplification Through Metadata
 
 **Query Strategies Enabled:**
 ```cypher
-// Find strongest influences in specific domain
-MATCH (m1)-[r:RELATES_TO]->(m2) 
-WHERE 'programming' IN r.context AND r.strength > 0.7
-ORDER BY r.strength DESC
-
 // Trace knowledge evolution over time  
 MATCH (m1)-[r:RELATES_TO]->(m2)
 WHERE r.relationType = 'INFLUENCES'
 ORDER BY r.createdAt ASC
-
-// Discover cross-domain patterns
-MATCH (m1)-[r:RELATES_TO]->(m2)
-WHERE size(r.context) > 1 AND r.strength > 0.6
 ```
 
 **Agent Intelligence Applications:**
-- **Smart Suggestions**: "Based on strong programming relationships, you might also find these writing patterns relevant"
-- **Context Switching**: "When working on creative projects, here are your most valuable cross-domain insights"  
 - **Temporal Context**: "At the time you made Decision X, these were your strongest influences"
-- **Relationship Quality**: "These connections have proven most valuable in similar contexts"

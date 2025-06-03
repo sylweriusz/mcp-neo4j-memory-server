@@ -1,251 +1,257 @@
 /**
- * Manage Observations Use Case Tests
- * Single responsibility: Test observation management with tag re-extraction (BUG #2 FIX)
- * THE IMPLEMENTOR'S RULE: Test the crime scene, not the evidence
+ * Manage Observations Use Case Tests - FULL PIPELINE COVERAGE
+ * Single responsibility: Test observation management that keeps memory intact
+ * Focus: Cover the 17.39% gap that could leave production observation pipelines broken
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ManageObservationsUseCase, ObservationRequest } from '../../../src/application/use-cases/manage-observations';
+import { MemoryRepository } from '../../../src/domain/repositories/memory-repository';
 
-describe('ManageObservationsUseCase', () => {
-  let observationUseCase: ManageObservationsUseCase;
-  let mockMemoryRepository: any;
-  let mockTagExtractionService: any;
+describe('ManageObservationsUseCase - The Observation Pipeline', () => {
+  let useCase: ManageObservationsUseCase;
+  let mockRepository: MemoryRepository;
 
   beforeEach(() => {
     vi.clearAllMocks();
     
-    mockMemoryRepository = {
+    // Mock the repository that actually handles the data operations
+    mockRepository = {
       findById: vi.fn(),
       addObservations: vi.fn(),
       deleteObservations: vi.fn(),
-      update: vi.fn()
-    };
-
-    mockTagExtractionService = {
-      extractTagsForMemory: vi.fn()
-    };
-
-    observationUseCase = new ManageObservationsUseCase(
-      mockMemoryRepository,
-      mockTagExtractionService
-    );
+      // Add other required methods as stubs
+      create: vi.fn(),
+      findByIds: vi.fn(), 
+      findByType: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      exists: vi.fn(),
+      findWithFilters: vi.fn(),
+      createRelation: vi.fn(),
+      createEnhancedRelation: vi.fn(),
+      deleteRelation: vi.fn()
+    } as any;
+    
+    useCase = new ManageObservationsUseCase(mockRepository);
   });
 
-  describe('Add Observations - BUG #2 FIX', () => {
-    it('should add observations and re-extract tags with temporal drift', async () => {
+  describe('Adding Observations', () => {
+    it('should add observations to existing memory', async () => {
+      // Setup: Mock memory exists
+      const mockMemory = { id: 'mem123', name: 'Test Memory' };
+      mockRepository.findById = vi.fn().mockResolvedValue(mockMemory);
+      mockRepository.addObservations = vi.fn().mockResolvedValue(undefined);
+
       const request: ObservationRequest = {
-        memoryId: 'Bm>test1234567890123',
-        contents: ['New observation about machine learning', 'Deep learning concepts']
+        memoryId: 'mem123',
+        contents: ['First observation', 'Second observation']
       };
 
-      const initialMemory = {
-        id: 'Bm>test1234567890123',
-        name: 'AI Research',
-        memoryType: 'research',
-        tags: ['ai', 'research'],
-        observations: []
+      // Execute
+      await useCase.addObservations(request);
+
+      // Verify
+      expect(mockRepository.findById).toHaveBeenCalledWith('mem123');
+      expect(mockRepository.addObservations).toHaveBeenCalledWith('mem123', [
+        'First observation',
+        'Second observation'
+      ]);
+    });
+
+    it('should fail when memory does not exist', async () => {
+      // Setup: Memory not found
+      mockRepository.findById = vi.fn().mockResolvedValue(null);
+
+      const request: ObservationRequest = {
+        memoryId: 'nonexistent',
+        contents: ['Observation for missing memory']
       };
 
-      const updatedMemory = {
-        id: 'Bm>test1234567890123',
-        name: 'AI Research',
-        memoryType: 'research',
-        tags: ['ai', 'research'],
-        observations: [
-          { content: 'New observation about machine learning', createdAt: '2025-05-28T10:00:00Z' },
-          { content: 'Deep learning concepts', createdAt: '2025-05-28T10:01:00Z' }
-        ]
-      };
-
-      const newTags = ['ai', 'research', 'machine-learning', 'deep-learning'];
-
-      mockMemoryRepository.findById
-        .mockResolvedValueOnce(initialMemory)
-        .mockResolvedValueOnce(updatedMemory);
+      // Execute & Verify
+      await expect(useCase.addObservations(request))
+        .rejects.toThrow('Memory with id nonexistent not found');
       
-      mockTagExtractionService.extractTagsForMemory.mockResolvedValue(newTags);
-
-      await observationUseCase.addObservations(request);
-
-      // Verify observations are added first
-      expect(mockMemoryRepository.addObservations).toHaveBeenCalledWith(
-        'Bm>test1234567890123',
-        ['New observation about machine learning', 'Deep learning concepts']
-      );
-
-      // Verify tag re-extraction with temporal drift flag
-      expect(mockTagExtractionService.extractTagsForMemory).toHaveBeenCalledWith(
-        'AI Research',
-        ['New observation about machine learning', 'Deep learning concepts'],
-        ['ai', 'research'],
-        true // isAddingNewObservations flag for temporal drift
-      );
-
-      // Verify memory update with new tags
-      expect(mockMemoryRepository.update).toHaveBeenCalledWith({
-        ...updatedMemory,
-        tags: newTags,
-        modifiedAt: expect.any(String)
-      });
+      expect(mockRepository.findById).toHaveBeenCalledWith('nonexistent');
+      expect(mockRepository.addObservations).not.toHaveBeenCalled();
     });
 
-    it('should not update memory when tags unchanged', async () => {
+    it('should handle empty observation list', async () => {
+      // Setup: Mock memory exists
+      const mockMemory = { id: 'mem123', name: 'Test Memory' };
+      mockRepository.findById = vi.fn().mockResolvedValue(mockMemory);
+      mockRepository.addObservations = vi.fn().mockResolvedValue(undefined);
+
       const request: ObservationRequest = {
-        memoryId: 'Bm>test1234567890123',
-        contents: ['Simple observation']
+        memoryId: 'mem123',
+        contents: [] // Empty array should still work
       };
 
-      const initialMemory = {
-        id: 'Bm>test1234567890123',
-        name: 'Test Memory',
-        memoryType: 'test',
-        tags: ['test', 'memory'],
-        observations: []
-      };
+      // Execute
+      await useCase.addObservations(request);
 
-      const updatedMemory = {
-        ...initialMemory,
-        observations: [{ content: 'Simple observation', createdAt: '2025-05-28T10:00:00Z' }]
-      };
-
-      // Tag extraction returns same tags
-      const sameTags = ['test', 'memory'];
-
-      mockMemoryRepository.findById
-        .mockResolvedValueOnce(initialMemory)
-        .mockResolvedValueOnce(updatedMemory);
-      
-      mockTagExtractionService.extractTagsForMemory.mockResolvedValue(sameTags);
-
-      await observationUseCase.addObservations(request);
-
-      expect(mockMemoryRepository.addObservations).toHaveBeenCalled();
-      expect(mockTagExtractionService.extractTagsForMemory).toHaveBeenCalled();
-      expect(mockMemoryRepository.update).not.toHaveBeenCalled();
-    });
-
-    it('should handle tag extraction failures gracefully', async () => {
-      const request: ObservationRequest = {
-        memoryId: 'Bm>test1234567890123',
-        contents: ['Test observation']
-      };
-
-      const mockMemory = {
-        id: 'Bm>test1234567890123',
-        name: 'Test Memory',
-        memoryType: 'test',
-        tags: ['existing'],
-        observations: []
-      };
-
-      mockMemoryRepository.findById.mockResolvedValue(mockMemory);
-      mockTagExtractionService.extractTagsForMemory.mockRejectedValue(new Error('Tag extraction failed'));
-
-      // Should not throw - observation addition should succeed
-      await expect(observationUseCase.addObservations(request)).resolves.toBeUndefined();
-
-      expect(mockMemoryRepository.addObservations).toHaveBeenCalled();
-      expect(mockMemoryRepository.update).not.toHaveBeenCalled();
-    });
-
-    it('should reject requests for non-existent memory', async () => {
-      const request: ObservationRequest = {
-        memoryId: 'Bm>nonexistent',
-        contents: ['Test observation']
-      };
-
-      mockMemoryRepository.findById.mockResolvedValue(null);
-
-      await expect(observationUseCase.addObservations(request)).rejects.toThrow(
-        'Memory with id Bm>nonexistent not found'
-      );
-
-      expect(mockMemoryRepository.addObservations).not.toHaveBeenCalled();
+      // Verify - should still call repository with empty array
+      expect(mockRepository.addObservations).toHaveBeenCalledWith('mem123', []);
     });
   });
 
-  describe('Delete Observations', () => {
-    it('should delete observations by ID', async () => {
+  describe('Deleting Observations', () => {
+    it('should delete observations from existing memory', async () => {
+      // Setup: Mock memory exists
+      const mockMemory = { id: 'mem456', name: 'Memory with Observations' };
+      mockRepository.findById = vi.fn().mockResolvedValue(mockMemory);
+      mockRepository.deleteObservations = vi.fn().mockResolvedValue(undefined);
+
       const request: ObservationRequest = {
-        memoryId: 'Bm>test1234567890123',
-        contents: ['Bm>obs123456789012', 'Bm>obs123456789013'] // Observation IDs
+        memoryId: 'mem456',
+        contents: ['obs-id-1', 'obs-id-2'] // These would be observation IDs for deletion
       };
 
-      const mockMemory = {
-        id: 'Bm>test1234567890123',
-        name: 'Test Memory',
-        memoryType: 'test',
-        tags: ['test'],
-        observations: []
-      };
+      // Execute
+      await useCase.deleteObservations(request);
 
-      mockMemoryRepository.findById.mockResolvedValue(mockMemory);
-
-      await observationUseCase.deleteObservations(request);
-
-      expect(mockMemoryRepository.findById).toHaveBeenCalledWith('Bm>test1234567890123');
-      expect(mockMemoryRepository.deleteObservations).toHaveBeenCalledWith(
-        'Bm>test1234567890123',
-        ['Bm>obs123456789012', 'Bm>obs123456789013']
-      );
+      // Verify
+      expect(mockRepository.findById).toHaveBeenCalledWith('mem456');
+      expect(mockRepository.deleteObservations).toHaveBeenCalledWith('mem456', [
+        'obs-id-1',
+        'obs-id-2'
+      ]);
     });
 
-    it('should reject deletion for non-existent memory', async () => {
+    it('should fail when memory does not exist for deletion', async () => {
+      // Setup: Memory not found
+      mockRepository.findById = vi.fn().mockResolvedValue(null);
+
       const request: ObservationRequest = {
-        memoryId: 'Bm>nonexistent',
-        contents: ['Bm>obs123456789012']
+        memoryId: 'missing-memory',
+        contents: ['obs-to-delete']
       };
 
-      mockMemoryRepository.findById.mockResolvedValue(null);
+      // Execute & Verify
+      await expect(useCase.deleteObservations(request))
+        .rejects.toThrow('Memory with id missing-memory not found');
+      
+      expect(mockRepository.findById).toHaveBeenCalledWith('missing-memory');
+      expect(mockRepository.deleteObservations).not.toHaveBeenCalled();
+    });
 
-      await expect(observationUseCase.deleteObservations(request)).rejects.toThrow(
-        'Memory with id Bm>nonexistent not found'
+    it('should handle repository errors during deletion', async () => {
+      // Setup: Memory exists but deletion fails
+      const mockMemory = { id: 'mem789', name: 'Test Memory' };
+      mockRepository.findById = vi.fn().mockResolvedValue(mockMemory);
+      mockRepository.deleteObservations = vi.fn().mockRejectedValue(
+        new Error('Database connection lost')
       );
 
-      expect(mockMemoryRepository.deleteObservations).not.toHaveBeenCalled();
+      const request: ObservationRequest = {
+        memoryId: 'mem789',
+        contents: ['obs-to-delete']
+      };
+
+      // Execute & Verify
+      await expect(useCase.deleteObservations(request))
+        .rejects.toThrow('Database connection lost');
     });
   });
 
   describe('Batch Operations', () => {
-    it('should execute multiple add operations', async () => {
+    it('should process multiple add operations successfully', async () => {
+      // Setup: Mock all memories exist
+      mockRepository.findById = vi.fn().mockResolvedValue({ id: 'test', name: 'Test Memory' });
+      mockRepository.addObservations = vi.fn().mockResolvedValue(undefined);
+
       const requests: ObservationRequest[] = [
-        { memoryId: 'Bm>memory1', contents: ['Observation 1'] },
-        { memoryId: 'Bm>memory2', contents: ['Observation 2'] }
+        { memoryId: 'mem1', contents: ['Observation 1'] },
+        { memoryId: 'mem2', contents: ['Observation 2', 'Observation 3'] },
+        { memoryId: 'mem3', contents: ['Observation 4'] }
       ];
 
-      const mockMemory = {
-        id: 'Bm>memory1',
-        name: 'Memory 1',
-        memoryType: 'test',
-        tags: ['test'],
-        observations: []
-      };
+      // Execute
+      const result = await useCase.executeMany('add', requests);
 
-      mockMemoryRepository.findById.mockResolvedValue(mockMemory);
-
-      const result = await observationUseCase.executeMany('add', requests);
-
-      expect(result.processed).toBe(2);
+      // Verify - count actual observations: 2 + 1 + 1 = 4
+      expect(result.processed).toBe(4);
       expect(result.errors).toHaveLength(0);
-      expect(mockMemoryRepository.addObservations).toHaveBeenCalledTimes(2);
+      expect(mockRepository.findById).toHaveBeenCalledTimes(3);
+      expect(mockRepository.addObservations).toHaveBeenCalledTimes(3);
     });
 
-    it('should handle mixed success/failure in batch operations', async () => {
+    it('should process multiple delete operations successfully', async () => {
+      // Setup: Mock all memories exist
+      mockRepository.findById = vi.fn().mockResolvedValue({ id: 'test', name: 'Test Memory' });
+      mockRepository.deleteObservations = vi.fn().mockResolvedValue(undefined);
+
       const requests: ObservationRequest[] = [
-        { memoryId: 'Bm>exists', contents: ['Good observation'] },
-        { memoryId: 'Bm>nonexistent', contents: ['Bad observation'] }
+        { memoryId: 'mem1', contents: ['obs-1'] },
+        { memoryId: 'mem2', contents: ['obs-2', 'obs-3'] }
       ];
 
-      mockMemoryRepository.findById
-        .mockResolvedValueOnce({ id: 'Bm>exists', name: 'Exists', memoryType: 'test', tags: [] })
-        .mockResolvedValueOnce(null);
+      // Execute
+      const result = await useCase.executeMany('delete', requests);
 
-      const result = await observationUseCase.executeMany('add', requests);
+      // Verify - count actual observations: 1 + 2 = 3
+      expect(result.processed).toBe(3);
+      expect(result.errors).toHaveLength(0);
+      expect(mockRepository.deleteObservations).toHaveBeenCalledTimes(2);
+    });
 
-      expect(result.processed).toBe(1);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to add observations for memory Bm>nonexistent');
+    it('should handle mixed success and failure scenarios', async () => {
+      // Setup: First memory exists, second doesn't, third exists
+      mockRepository.findById = vi.fn()
+        .mockResolvedValueOnce({ id: 'mem1', name: 'Memory 1' })
+        .mockResolvedValueOnce(null) // Memory not found
+        .mockResolvedValueOnce({ id: 'mem3', name: 'Memory 3' });
+      
+      mockRepository.addObservations = vi.fn().mockResolvedValue(undefined);
+
+      const requests: ObservationRequest[] = [
+        { memoryId: 'mem1', contents: ['Success observation'] },
+        { memoryId: 'nonexistent', contents: ['Failed observation'] },
+        { memoryId: 'mem3', contents: ['Another success'] }
+      ];
+
+      // Execute
+      const result = await useCase.executeMany('add', requests);
+
+      // Verify
+      expect(result.processed).toBe(2); // Two successful
+      expect(result.errors).toHaveLength(1); // One failed
+      expect(result.errors[0]).toContain('Memory with id nonexistent not found');
+      expect(mockRepository.addObservations).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle repository errors in batch operations', async () => {
+      // Setup: Memory exists but operations fail randomly
+      mockRepository.findById = vi.fn().mockResolvedValue({ id: 'test', name: 'Test Memory' });
+      mockRepository.addObservations = vi.fn()
+        .mockResolvedValueOnce(undefined) // First succeeds
+        .mockRejectedValueOnce(new Error('Database timeout')) // Second fails
+        .mockResolvedValueOnce(undefined); // Third succeeds
+
+      const requests: ObservationRequest[] = [
+        { memoryId: 'mem1', contents: ['Success 1'] },
+        { memoryId: 'mem2', contents: ['Will fail'] },
+        { memoryId: 'mem3', contents: ['Success 2'] }
+      ];
+
+      // Execute
+      const result = await useCase.executeMany('add', requests);
+
+      // Verify
+      expect(result.processed).toBe(2); // Two successful
+      expect(result.errors).toHaveLength(1); // One failed
+      expect(result.errors[0]).toContain('Database timeout');
+    });
+
+    it('should handle empty batch operations', async () => {
+      // Execute with empty requests
+      const result = await useCase.executeMany('add', []);
+
+      // Verify
+      expect(result.processed).toBe(0);
+      expect(result.errors).toHaveLength(0);
+      expect(mockRepository.findById).not.toHaveBeenCalled();
+      expect(mockRepository.addObservations).not.toHaveBeenCalled();
     });
   });
 });

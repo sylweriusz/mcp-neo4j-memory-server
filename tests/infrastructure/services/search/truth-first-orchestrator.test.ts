@@ -80,8 +80,8 @@ describe('TruthFirstSearchOrchestrator - Integration Pipeline', () => {
 
       expect(mockWildcardService.search).toHaveBeenCalledWith(10, true, undefined);
       expect(results).toHaveLength(1);
-      expect(results[0].truthLevel).toBe(1.0); // PERFECT_TRUTH
-      expect(results[0].matchReason).toBe('wildcard');
+      expect(results[0]._internal?.truthLevel).toBe(1.0); // PERFECT_TRUTH
+      expect(results[0]._internal?.matchReason).toBe('wildcard');
     });
   });
 

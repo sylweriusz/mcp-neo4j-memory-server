@@ -12,3 +12,10 @@ export {
   calculateSimilarity, 
   type Vector 
 } from './embedding-utility';
+
+// Error handling utilities
+export { 
+  isErrorWithMessage, 
+  getErrorMessage, 
+  createErrorMessage 
+} from './error-utils';

@@ -1,65 +1,60 @@
 /**
- * Memory Domain Entity
- * Single responsibility: Memory business logic and validation
+ * Memory Domain Entity Interface
+ * Single responsibility: Memory data structure and validation
  */
 
-export class Memory {
-  constructor(
-    public readonly id: string,
-    public readonly name: string,
-    public readonly memoryType: string,
-    public readonly metadata: Record<string, any> = {},
-    public readonly createdAt: Date = new Date(),
-    public modifiedAt: Date = new Date(),
-    public lastAccessed: Date = new Date()
-  ) {
-    this.validateMemory();
-  }
+export interface MemoryObservation {
+  id?: string;
+  content: string;
+  createdAt: string;
+}
 
-  /**
-   * Domain validation rules for Memory
-   */
-  private validateMemory(): void {
-    if (!this.id || this.id.length !== 18) {
+export interface Memory {
+  readonly id: string;
+  readonly name: string;
+  readonly memoryType: string;
+  readonly metadata: Record<string, any>;
+  readonly createdAt: Date | string;
+  modifiedAt: Date | string;
+  lastAccessed: Date | string;
+  observations?: MemoryObservation[];
+  related?: {
+    ancestors?: any[];
+    descendants?: any[];
+  };
+}
+
+/**
+ * Memory validation utility functions
+ * Single responsibility: Domain business rules
+ */
+export class MemoryValidator {
+  static validate(memory: Partial<Memory>): void {
+    if (!memory.id || memory.id.length !== 18) {
       throw new Error('Memory ID must be exactly 18 characters');
     }
     
-    if (!this.name || this.name.trim().length === 0) {
+    if (!memory.name || memory.name.trim().length === 0) {
       throw new Error('Memory name is required');
     }
     
-    if (!this.memoryType || this.memoryType.trim().length === 0) {
+    if (!memory.memoryType || memory.memoryType.trim().length === 0) {
       throw new Error('Memory type is required');
     }
   }
 
-  /**
-   * Update last accessed timestamp
-   */
-  markAsAccessed(): Memory {
-    return new Memory(
-      this.id,
-      this.name,
-      this.memoryType,
-      this.metadata,
-      this.createdAt,
-      this.modifiedAt,
-      new Date()
-    );
+  static markAsAccessed(memory: Memory): Memory {
+    return {
+      ...memory,
+      lastAccessed: new Date()
+    };
   }
 
-  /**
-   * Create updated memory with new modification time
-   */
-  withUpdatedMetadata(newMetadata: Record<string, any>): Memory {
-    return new Memory(
-      this.id,
-      this.name,
-      this.memoryType,
-      { ...this.metadata, ...newMetadata },
-      this.createdAt,
-      new Date(),
-      this.lastAccessed
-    );
+  static withUpdatedMetadata(memory: Memory, newMetadata: Record<string, any>): Memory {
+    return {
+      ...memory,
+      metadata: { ...memory.metadata, ...newMetadata },
+      modifiedAt: new Date()
+    };
   }
 }

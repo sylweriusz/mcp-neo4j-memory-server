@@ -1,0 +1,253 @@
+/**
+ * CleanDatabaseManager Tests - Production Infrastructure
+ * Single responsibility: Test database management operations
+ * 
+ * Test Coverage Target: 90%+ (Critical database infrastructure)
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CleanDatabaseManager } from '../../../src/infrastructure/database/clean-database-manager';
+import { Neo4jDriverManager } from '../../../src/infrastructure/database/neo4j-driver';
+import { SessionFactory } from '../../../src/infrastructure/database/session-factory';
+
+// Mock dependencies
+vi.mock('../../../src/infrastructure/database/neo4j-driver');
+vi.mock('../../../src/infrastructure/database/session-factory');
+
+describe('CleanDatabaseManager - Database Operations', () => {
+  let databaseManager: CleanDatabaseManager;
+  let mockDriverManager: vi.Mocked<Neo4jDriverManager>;
+  let mockSessionFactory: vi.Mocked<SessionFactory>;
+  let mockSession: any;
+  let mockSystemSession: any;
+
+  beforeEach(() => {
+    // Create mock sessions
+    mockSession = {
+      run: vi.fn(),
+      close: vi.fn()
+    };
+
+    mockSystemSession = {
+      run: vi.fn(),
+      close: vi.fn()
+    };
+
+    // Mock SessionFactory
+    mockSessionFactory = {
+      createSession: vi.fn().mockReturnValue(mockSession),
+      createSystemSession: vi.fn().mockReturnValue(mockSystemSession),
+      withSession: vi.fn()
+    } as any;
+
+    // Mock DriverManager
+    mockDriverManager = {
+      getCurrentDatabase: vi.fn().mockReturnValue({ database: 'test-db' }),
+      switchDatabase: vi.fn(),
+      close: vi.fn()
+    } as any;
+
+    databaseManager = new CleanDatabaseManager(mockDriverManager, mockSessionFactory);
+  });
+
+  describe('switchDatabase', () => {
+    it('should switch to existing database successfully', async () => {
+      // Arrange
+      const databaseName = 'project-database';
+      
+      // Mock database exists check
+      mockSystemSession.run.mockResolvedValue({
+        records: [{ get: () => databaseName }]
+      });
+
+      // Mock schema check
+      mockSession.run
+        .mockResolvedValueOnce({ records: [{}] }) // hasRequiredSchema - constraints
+        .mockResolvedValueOnce({ records: [{}] }); // hasRequiredSchema - indexes
+
+      // Act
+      const result = await databaseManager.switchDatabase(databaseName);
+
+      // Assert
+      expect(mockDriverManager.switchDatabase).toHaveBeenCalledWith(databaseName);
+      expect(result).toEqual({
+        previousDatabase: 'test-db',
+        currentDatabase: databaseName,
+        created: false
+      });
+    });
+
+    it('should create new database when it does not exist', async () => {
+      // Arrange
+      const databaseName = 'new-project-db';
+      
+      // Mock database does not exist
+      mockSystemSession.run
+        .mockResolvedValueOnce({ records: [] }) // Database doesn't exist
+        .mockResolvedValueOnce({}); // CREATE DATABASE command
+
+      // Mock schema initialization
+      mockSession.run.mockResolvedValue({ records: [] });
+
+      // Act
+      const result = await databaseManager.switchDatabase(databaseName, true);
+
+      // Assert
+      expect(mockSystemSession.run).toHaveBeenCalledWith(
+        'CREATE DATABASE $name IF NOT EXISTS',
+        { name: databaseName }
+      );
+      expect(result.created).toBe(true);
+    });
+
+    it('should stay in same database when switching to current database', async () => {
+      // Arrange
+      const currentDb = 'test-db';
+      mockDriverManager.getCurrentDatabase.mockReturnValue({ database: currentDb });
+      
+      // Mock schema exists
+      mockSession.run
+        .mockResolvedValueOnce({ records: [{}] }) // hasRequiredSchema - constraints
+        .mockResolvedValueOnce({ records: [{}] }); // hasRequiredSchema - indexes
+
+      // Act
+      const result = await databaseManager.switchDatabase(currentDb);
+
+      // Assert
+      expect(mockDriverManager.switchDatabase).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        previousDatabase: currentDb,
+        currentDatabase: currentDb,
+        created: false
+      });
+    });
+
+    it('should validate database name format', async () => {
+      // Arrange
+      const invalidName = 'Invalid-Database-Name-With-CAPS';
+
+      // Act & Assert
+      await expect(databaseManager.switchDatabase(invalidName))
+        .rejects
+        .toThrow(`Invalid database name: ${invalidName}`);
+    });
+
+    it('should handle database creation errors gracefully', async () => {
+      // Arrange
+      const databaseName = 'test-creation-error';
+      
+      // Mock database does not exist
+      mockSystemSession.run
+        .mockResolvedValueOnce({ records: [] }) // Database doesn't exist
+        .mockRejectedValueOnce(new Error('Database creation failed')); // CREATE fails
+
+      // Act & Assert
+      await expect(databaseManager.switchDatabase(databaseName, false))
+        .rejects
+        .toThrow(`Database '${databaseName}' does not exist`);
+    });
+  });
+
+  describe('getCurrentDatabase', () => {
+    it('should return current database from driver manager', () => {
+      // Arrange
+      const expectedDb = { database: 'current-test-db' };
+      mockDriverManager.getCurrentDatabase.mockReturnValue(expectedDb);
+
+      // Act
+      const result = databaseManager.getCurrentDatabase();
+
+      // Assert
+      expect(result).toEqual(expectedDb);
+      expect(mockDriverManager.getCurrentDatabase).toHaveBeenCalled();
+    });
+  });
+
+  describe('close', () => {
+    it('should close driver manager', async () => {
+      // Act
+      await databaseManager.close();
+
+      // Assert
+      expect(mockDriverManager.close).toHaveBeenCalled();
+    });
+  });
+
+  describe('Database Name Validation', () => {
+    it('should accept valid database names', async () => {
+      // Arrange
+      const validNames = [
+        'valid-db-name',
+        'test_database',
+        'project123',
+        'a.b.c'
+      ];
+
+      for (const name of validNames) {
+        mockSystemSession.run.mockResolvedValue({ records: [{}] });
+        mockSession.run.mockResolvedValue({ records: [] });
+
+        // Act & Assert - Should not throw
+        await expect(databaseManager.switchDatabase(name)).resolves.toBeDefined();
+      }
+    });
+
+    it('should reject invalid database names', async () => {
+      // Arrange
+      const invalidNames = [
+        'Invalid-With-CAPS',
+        '123-starts-with-number',
+        'too-long-name-' + 'x'.repeat(50),
+        'has spaces',
+        'has@special#chars'
+      ];
+
+      for (const name of invalidNames) {
+        // Act & Assert
+        await expect(databaseManager.switchDatabase(name))
+          .rejects
+          .toThrow(`Invalid database name: ${name}`);
+      }
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle network timeouts during database operations', async () => {
+      // Arrange
+      const databaseName = 'timeout-test';
+      mockSystemSession.run.mockRejectedValue(new Error('Connection timeout'));
+
+      // Act & Assert
+      await expect(databaseManager.switchDatabase(databaseName))
+        .rejects
+        .toThrow(`Failed to switch to database '${databaseName}': Error: Connection timeout`);
+    });
+
+    it('should handle permission errors', async () => {
+      // Arrange
+      const databaseName = 'permission-test';
+      mockSystemSession.run.mockRejectedValue(new Error('Access denied'));
+
+      // Act & Assert
+      await expect(databaseManager.switchDatabase(databaseName))
+        .rejects
+        .toThrow('Access denied');
+    });
+
+    it('should initialize schema in new database', async () => {
+      // Arrange
+      const databaseName = 'schema-test-db';
+      
+      // Mock successful database operations
+      mockSystemSession.run.mockResolvedValue({ records: [{ get: () => databaseName }] });
+      mockSession.run.mockResolvedValue({ records: [] });
+
+      // Act
+      await databaseManager.switchDatabase(databaseName);
+
+      // Assert
+      expect(mockSessionFactory.createSession).toHaveBeenCalled();
+      // Schema initialization happens through IndexManager
+    });
+  });
+});

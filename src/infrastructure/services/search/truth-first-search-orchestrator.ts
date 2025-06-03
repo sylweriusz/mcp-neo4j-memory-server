@@ -12,7 +12,7 @@ import { TruthScorer, TruthLevel } from './truth-scorer';
 import { ExactSearchChannel } from './exact-search-channel';
 import { VectorSearchChannel, VectorCandidate } from './vector-search-channel';
 import { WildcardSearchService } from './wildcard-search-service';
-import { SearchResultProcessor, TruthSearchResult } from './search-result-processor';
+import { SearchResultProcessor, PracticalHybridSearchResult } from './search-result-processor';
 
 /**
  * Truth-first search orchestrator implementing GDD v2.2.0 architecture
@@ -45,7 +45,7 @@ export class TruthFirstSearchOrchestrator {
     includeGraphContext: boolean = true,
     memoryTypes?: string[],
     threshold: number = 0.1
-  ): Promise<TruthSearchResult[]> {
+  ): Promise<PracticalHybridSearchResult[]> {
     // Input validation
     if (!query || typeof query !== 'string') {
       throw new Error('Search query must be a non-empty string');
@@ -68,9 +68,13 @@ export class TruthFirstSearchOrchestrator {
       
       return wildcardResults.map(result => ({
         ...result,
-        truthLevel: TruthLevel.PERFECT_TRUTH,
-        matchReason: 'wildcard',
-        rawVectorScore: undefined
+        score: result.score || 1.0,         // Ensure required score property
+        matchType: 'exact' as const,
+        _internal: {
+          truthLevel: TruthLevel.PERFECT_TRUTH,
+          matchReason: 'wildcard',
+          simulatedScore: 1.0
+        }
       }));
     }
 
@@ -82,10 +86,8 @@ export class TruthFirstSearchOrchestrator {
       memoryTypes
     );
 
-    // Add graph context if requested
-    if (includeGraphContext && searchResults.length > 0) {
-      await this.enrichWithGraphContext(searchResults);
-    }
+    // Enhanced search results already include graph context via enrichWithFullMemoryData
+    // No additional processing needed when includeGraphContext is true
 
     // Strict limit enforcement (GDD 8.1)
     return searchResults.slice(0, limit);
@@ -99,7 +101,7 @@ export class TruthFirstSearchOrchestrator {
     limit: number,
     threshold: number,
     memoryTypes?: string[]
-  ): Promise<TruthSearchResult[]> {
+  ): Promise<PracticalHybridSearchResult[]> {
     // Execute exact search channel (always)
     const exactCandidates = await this.exactChannel.search(
       queryIntent.preprocessing.normalized,
@@ -118,7 +120,7 @@ export class TruthFirstSearchOrchestrator {
           memoryTypes
         );
       } catch (error) {
-        console.warn('[TruthSearch] Vector channel failed:', error.message);
+        console.warn('[TruthSearch] Vector channel failed:', error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -138,9 +140,9 @@ export class TruthFirstSearchOrchestrator {
    * Enrich scored candidates with full memory data
    */
   private async enrichWithFullMemoryData(
-    candidates: TruthSearchResult[],
+    candidates: PracticalHybridSearchResult[],
     memoryTypes?: string[]
-  ): Promise<TruthSearchResult[]> {
+  ): Promise<PracticalHybridSearchResult[]> {
     if (candidates.length === 0) return [];
 
     const candidateIds = candidates.map(c => c.id);
@@ -155,10 +157,37 @@ export class TruthFirstSearchOrchestrator {
       MATCH (m:Memory)
       ${whereClause}
       
-      // Collect observations with proper ordering
+      // Graph context - 2 levels deep with exact relation types
+      OPTIONAL MATCH path1 = (ancestor:Memory)-[rel1*1..2]->(m)
+      WHERE ancestor <> m AND ancestor.id IS NOT NULL
+      WITH m, collect(DISTINCT {
+        id: ancestor.id,
+        name: ancestor.name,
+        type: ancestor.memoryType,
+        relation: rel1[0].relationType,
+        distance: length(path1),
+        strength: rel1[0].strength,
+        source: rel1[0].source,
+        createdAt: rel1[0].createdAt
+      })[0..3] as ancestors
+
+      OPTIONAL MATCH path2 = (m)-[rel2*1..2]->(descendant:Memory)
+      WHERE descendant <> m AND descendant.id IS NOT NULL
+      WITH m, ancestors, collect(DISTINCT {
+        id: descendant.id,
+        name: descendant.name,
+        type: descendant.memoryType,
+        relation: rel2[0].relationType,
+        distance: length(path2),
+        strength: rel2[0].strength,
+        source: rel2[0].source,
+        createdAt: rel2[0].createdAt
+      })[0..3] as descendants
+
+      // Core content with ordered observations
       OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
-      WITH m, o ORDER BY o.createdAt ASC
-      WITH m, collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) as observations
+      WITH m, ancestors, descendants, o
+      ORDER BY o.createdAt ASC
       
       RETURN m.id as id,
              m.name as name,
@@ -167,7 +196,9 @@ export class TruthFirstSearchOrchestrator {
              m.createdAt as createdAt,
              m.modifiedAt as modifiedAt,
              m.lastAccessed as lastAccessed,
-             observations
+             collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) as observations,
+             ancestors,
+             descendants
       ORDER BY m.name
     `;
 
@@ -176,6 +207,9 @@ export class TruthFirstSearchOrchestrator {
     // Create enriched results map
     const enrichedMap = new Map<string, any>();
     for (const record of result.records) {
+      const ancestors = record.get('ancestors') || [];
+      const descendants = record.get('descendants') || [];
+      
       const memoryData = {
         id: record.get('id'),
         name: record.get('name'),
@@ -184,7 +218,8 @@ export class TruthFirstSearchOrchestrator {
         metadata: this.parseMetadata(record.get('metadata')),
         createdAt: record.get('createdAt'),
         modifiedAt: record.get('modifiedAt'),
-        lastAccessed: record.get('lastAccessed')
+        lastAccessed: record.get('lastAccessed'),
+        related: this.processGraphContext(ancestors, descendants)
       };
       enrichedMap.set(memoryData.id, memoryData);
     }
@@ -220,6 +255,38 @@ export class TruthFirstSearchOrchestrator {
       }));
   }
 
+  private processGraphContext(ancestors: any[], descendants: any[]): any {
+    const processedAncestors = ancestors
+      .filter((a: any) => a.id !== null)
+      .map((a: any) => ({
+        ...a,
+        distance: a.distance ? this.convertNeo4jInteger(a.distance) : 0
+      }));
+
+    const processedDescendants = descendants
+      .filter((d: any) => d.id !== null)
+      .map((d: any) => ({
+        ...d,
+        distance: d.distance ? this.convertNeo4jInteger(d.distance) : 0
+      }));
+
+    // Only include related if there are actual relationships
+    if (processedAncestors.length > 0 || processedDescendants.length > 0) {
+      return {
+        ...(processedAncestors.length > 0 && { ancestors: processedAncestors }),
+        ...(processedDescendants.length > 0 && { descendants: processedDescendants })
+      };
+    }
+
+    return undefined;
+  }
+
+  private convertNeo4jInteger(value: any): number {
+    if (typeof value === 'number') return value;
+    if (value && typeof value.toNumber === 'function') return value.toNumber();
+    return 0;
+  }
+
   private parseMetadata(metadata: string | null): Record<string, any> {
     if (!metadata) return {};
     try {
@@ -227,13 +294,5 @@ export class TruthFirstSearchOrchestrator {
     } catch {
       return {};
     }
-  }
-
-  /**
-   * Enrich results with graph context (placeholder for existing service)
-   */
-  private async enrichWithGraphContext(results: TruthSearchResult[]): Promise<void> {
-    // TODO: Integrate with existing GraphContextService
-    // For now, maintain interface compatibility
   }
 }

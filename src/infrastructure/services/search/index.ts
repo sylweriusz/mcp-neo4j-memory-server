@@ -8,5 +8,5 @@ export { TruthScorer, TruthLevel, SearchCandidate, MatchEvidence } from './truth
 export { ExactSearchChannel, ExactMatchCandidate } from './exact-search-channel';
 export { VectorSearchChannel, VectorCandidate } from './vector-search-channel';
 export { WildcardSearchService } from './wildcard-search-service';
-export { SearchResultProcessor, TruthSearchResult } from './search-result-processor';
+export { SearchResultProcessor, PracticalHybridSearchResult } from './search-result-processor';
 export { TruthFirstSearchOrchestrator } from './truth-first-search-orchestrator';

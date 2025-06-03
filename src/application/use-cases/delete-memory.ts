@@ -4,6 +4,7 @@
  */
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
+import { createErrorMessage } from '../../infrastructure/utilities';
 
 export class DeleteMemoryUseCase {
   constructor(private memoryRepository: MemoryRepository) {}
@@ -18,14 +19,14 @@ export class DeleteMemoryUseCase {
   }
 
   async executeMany(ids: string[]): Promise<{ deleted: number; errors: string[] }> {
-    const results = { deleted: 0, errors: [] };
+    const results: { deleted: number; errors: string[] } = { deleted: 0, errors: [] };
     
     for (const id of ids) {
       try {
         await this.execute(id);
         results.deleted++;
       } catch (error) {
-        results.errors.push(`Failed to delete ${id}: ${error.message}`);
+        results.errors.push(createErrorMessage(`Failed to delete ${id}`, error));
       }
     }
     

@@ -3,7 +3,7 @@
  * Single responsibility: Orchestrate memory creation workflow
  */
 
-import { Memory } from '../../domain/entities/memory';
+import { Memory, MemoryValidator } from '../../domain/entities/memory';
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { EmbeddingService } from '../../infrastructure/services/embedding-service';
 import { generateCompactId } from '../../id_generator';
@@ -29,15 +29,18 @@ export class CreateMemoryUseCase {
     const nameEmbedding = await this.embeddingService.calculateEmbedding(request.name);
     
     // Create domain entity with validation
-    const memory = new Memory(
+    const memory: Memory = {
       id,
-      request.name,
-      request.memoryType,
-      request.metadata || {},
-      new Date(),
-      new Date(),
-      new Date()
-    );
+      name: request.name,
+      memoryType: request.memoryType,
+      metadata: request.metadata || {},
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+      lastAccessed: new Date()
+    };
+
+    // Validate domain entity
+    MemoryValidator.validate(memory);
 
     // Add nameEmbedding to memory object for persistence
     (memory as any).nameEmbedding = nameEmbedding;

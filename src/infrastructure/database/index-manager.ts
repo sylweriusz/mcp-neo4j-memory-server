@@ -67,8 +67,8 @@ export class IndexManager {
       try {
         await this.session.run(constraint);
       } catch (error) {
-        console.error(`[IndexManager] Constraint failed: ${constraint}`, error);
-        throw error; // Fail fast - no silent failures
+        // Constraint creation failed - this IS a real problem
+        throw error; 
       }
     }
   }
@@ -103,8 +103,8 @@ export class IndexManager {
       try {
         await this.session.run(index);
       } catch (error) {
-        console.error(`[IndexManager] Active index failed: ${index}`, error);
-        throw error; // Fail fast - no silent failures
+        // Index creation failed - real problem
+        throw error;
       }
     }
   }
@@ -138,17 +138,26 @@ export class IndexManager {
    * Ensure vector indexes exist (GDS Plugin)
    * GDD v2.3.1: VERIFIED USAGE in vector-search-channel.ts
    * MENTAT DISCIPLINE: Zero-fallback system database detection
+   * FIXED: Use DIContainer singleton for dimension consistency
    */
   async ensureVectorIndexes(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
     await this.validateUserDatabase();
     try {
-      // Import here to avoid circular dependencies
-      const { SmartEmbeddingManager } = await import('../services/smart-embedding-manager');
-      const embeddingManager = new SmartEmbeddingManager();
+      // FIXED: Import DIContainer to use the singleton embedding service
+      const { DIContainer } = await import('../../container/di-container');
+      const container = DIContainer.getInstance();
+      const embeddingService = container.getEmbeddingService();
       
-      // Get dimensions dynamically from the configured model
-      const dimensions = await embeddingManager.getModelDimensions();
+      // Get dimensions from the same instance used throughout the system
+      const dimensions = await embeddingService.getModelDimensions();
+      
+      // CRITICAL VALIDATION: Ensure dimensions are valid before creating indexes
+      if (!dimensions || dimensions <= 0) {
+        throw new Error(`INVALID VECTOR DIMENSIONS: ${dimensions}. Model may not be loaded properly. Check embedding service configuration.`);
+      }
+      
+      //console.info(`[IndexManager] Creating vector indexes with dimensions: ${dimensions}`);
       
       // VERIFIED USAGE: gds.similarity.cosine(m.nameEmbedding, $queryVector)
       const memoryVectorIndex = `
@@ -173,8 +182,7 @@ export class IndexManager {
       await this.session.run(observationVectorIndex);
       
     } catch (error) {
-      // Expected for Community Edition - vector search will use in-memory calculation
-      console.warn('[IndexManager] Vector indexes not available (Community Edition or GDS not installed)');
+      // Expected for Community Edition - silent operation
     }
   }
 
@@ -192,10 +200,9 @@ export class IndexManager {
     for (const indexName of deadIndexes) {
       try {
         await this.session.run(`DROP INDEX ${indexName} IF EXISTS`);
-        console.error(`[IndexManager] Removed dead index: ${indexName}`);
+        // Silent cleanup - no logging noise for normal operations
       } catch (error) {
-        // Index might not exist - continue cleanup
-        console.warn(`[IndexManager] Could not remove ${indexName}:`, error);
+        // Index might not exist - continue cleanup silently
       }
     }
   }
@@ -244,8 +251,8 @@ export class IndexManager {
       
       return hasRequiredElements;
     } catch (error) {
-      console.warn(`[IndexManager] Schema check failed, assuming missing: ${error instanceof Error ? error.message : String(error)}`);
-      return false; // Assume schema is missing if we can't check
+      // Schema check failed - assume missing (silent)
+      return false; 
     }
   }
 
@@ -274,10 +281,10 @@ export class IndexManager {
       // Step 5: Create vector indexes (if supported)
       await this.ensureVectorIndexes();
       
-      console.error('[IndexManager] Schema initialization COMPLETE - reality-based indexes only');
+      // Silent initialization - only real failures matter
     } catch (error) {
-      console.error("[IndexManager] Schema initialization FAILED:", error);
-      throw error; // Fail fast - no silent failures
+      // Schema initialization failed - this is a real problem
+      throw error;
     }
   }
 }

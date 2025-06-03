@@ -3,10 +3,27 @@
  * Single responsibility: Memory data structure and validation
  */
 
+/**
+ * Memory Domain Entity Interface
+ * Single responsibility: Memory data structure and validation
+ * THE SINGLE SOURCE OF TRUTH for Memory types
+ */
+
 export interface MemoryObservation {
   id?: string;
   content: string;
   createdAt: string;
+}
+
+export interface RelatedMemory {
+  id: string;
+  name: string;
+  type: string;
+  relation: string;
+  distance: number;
+  strength?: number;
+  source?: string;
+  createdAt?: string;
 }
 
 export interface Memory {
@@ -19,8 +36,39 @@ export interface Memory {
   lastAccessed: Date | string;
   observations?: MemoryObservation[];
   related?: {
-    ancestors?: any[];
-    descendants?: any[];
+    ancestors?: RelatedMemory[];
+    descendants?: RelatedMemory[];
+  };
+}
+
+/**
+ * Memory input interface for creation (without ID)
+ */
+export interface MemoryInput {
+  name: string;
+  memoryType: string;
+  metadata?: Record<string, any>;
+  observations?: string[];
+  createdAt?: string;
+  modifiedAt?: string;
+  lastAccessed?: string;
+}
+
+/**
+ * Memory response interface for MCP responses (clean, no embeddings)
+ */
+export interface MemoryResponse {
+  id: string;
+  name: string;
+  memoryType: string;
+  metadata?: Record<string, any>;
+  createdAt?: string;
+  modifiedAt?: string;
+  lastAccessed?: string;
+  observations: MemoryObservation[];
+  related?: {
+    ancestors?: RelatedMemory[];
+    descendants?: RelatedMemory[];
   };
 }
 

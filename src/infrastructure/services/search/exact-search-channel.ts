@@ -80,6 +80,7 @@ export class ExactSearchChannel {
    * Search using FULLTEXT indexes (metadata and observations)
    * THE FIX: Actually use the indexes we created instead of bypassing them
    * GDD COMPLIANCE: Memory type filtering at Cypher level
+   * SAURON EYE FIX: Query sanitization to prevent Lucene ParseException
    */
   private async searchFulltext(
     query: string,
@@ -87,6 +88,9 @@ export class ExactSearchChannel {
     memoryTypes?: string[]
   ): Promise<ExactMatchCandidate[]> {
     const candidates: ExactMatchCandidate[] = [];
+    
+    // SAURON EYE FIX: Sanitize query for Lucene to prevent ParseException
+    const sanitizedQuery = this.sanitizeLuceneQuery(query);
     
     try {
       // Build memory type filter for FULLTEXT queries
@@ -108,7 +112,7 @@ export class ExactSearchChannel {
       `;
       
       const metadataResult = await this.session.run(metadataQuery, { 
-        query, 
+        query: sanitizedQuery, 
         limit: neo4j.int(limit),
         memoryTypes
       });
@@ -140,7 +144,7 @@ export class ExactSearchChannel {
       `;
       
       const contentResult = await this.session.run(contentQuery, { 
-        query, 
+        query: sanitizedQuery, 
         limit: neo4j.int(limit),
         memoryTypes
       });
@@ -216,6 +220,23 @@ export class ExactSearchChannel {
         exactContent: false
       }
     }));
+  }
+
+  /**
+   * Sanitize query for Lucene FULLTEXT search to prevent ParseException
+   * SAURON EYE FIX: Escape special characters that break Lucene parser
+   * 
+   * Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+   * These need to be escaped with backslash to be treated as literal characters
+   */
+  private sanitizeLuceneQuery(query: string): string {
+    if (!query || typeof query !== 'string') {
+      return '';
+    }
+    
+    // Escape Lucene special characters that cause ParseException
+    // Note: We escape these to search for them as literal characters
+    return query.replace(/[+\-&|!(){}[\]^"~*?:\\]/g, '\\$&');
   }
 
   private parseMetadata(metadata: string | null): Record<string, any> {

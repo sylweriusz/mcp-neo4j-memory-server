@@ -24,9 +24,9 @@ export class SmartEmbeddingManager implements EmbeddingManager {
 
   constructor() {
     if (this.config.preload) {
-      // Don't await here - let it load in background
+      // Silent background loading
       this.preloadModel().catch(error => {
-        console.error('[EMBEDDING] Preload failed:', error);
+        // Silent failure - preload is optional optimization
       });
     }
   }

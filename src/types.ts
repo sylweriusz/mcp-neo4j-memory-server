@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Memory, MemoryInput, MemoryResponse, MemoryObservation, RelatedMemory } from "./domain/entities/memory";
 
 /**
  * Enhanced search-related types for unified search system
@@ -37,17 +38,8 @@ export interface EnhancedSearchResult {
   score?: number;
 }
 
-export interface RelatedMemory {
-  id: string;
-  name: string;
-  type: string;
-  relation: string;
-  distance: number;
-  // Enhanced relationship metadata (simplified without context complexity)
-  strength?: number;      // 0.0-1.0
-  source?: string;        // "agent" | "user" | "system"
-  createdAt?: string;     // ISO timestamp
-}
+// Re-export domain types for backward compatibility
+export type { Memory, MemoryInput, MemoryResponse, MemoryObservation, RelatedMemory };
 
 /**
  * The primary nodes in the knowledge graph - INPUT schema (ID will be auto-generated)
@@ -64,41 +56,6 @@ export const MemoryObject = z.object({
     .array(z.string())
     .describe("An array of observation contents associated with the memory"),
 });
-
-/**
- * Full Memory type with ID added internally after creation
- */
-export type Memory = z.infer<typeof MemoryObject> & {
-  id: string; // ID is generated internally and added after creation
-  metadata?: Record<string, any>; // Flexible structured data
-  related?: { // Graph context from relationships
-    ancestors?: RelatedMemory[];
-    descendants?: RelatedMemory[];
-  };
-};
-
-/**
- * Memory response type for MCP - excludes nameEmbedding to keep response clean
- */
-export type MemoryResponse = {
-  id: string;
-  name: string;
-  memoryType: string;
-  metadata?: Record<string, any>;
-  createdAt?: string;
-  modifiedAt?: string;
-  lastAccessed?: string;
-  observations: Array<{id?: string, content: string, createdAt: string}>;
-  related?: { // Graph context from relationships
-    ancestors?: RelatedMemory[];
-    descendants?: RelatedMemory[];
-  };
-};
-
-/**
- * Memory input type (without ID for creation)
- */
-export type MemoryInput = z.infer<typeof MemoryObject>;
 
 /**
  * Relations define directed connections between memories.

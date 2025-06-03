@@ -102,7 +102,7 @@ export class SimplifiedSearchService {
           memoryTypes
         );
       } catch (error) {
-        console.warn('[SimplifiedSearch] Vector search failed:', error instanceof Error ? error.message : String(error));
+        // Vector search failed - continue with exact results only
       }
     }
 
@@ -235,6 +235,8 @@ export class SimplifiedSearchService {
       OPTIONAL MATCH (m)-[:HAS_OBSERVATION]->(o:Observation)
       WITH m, ancestors, descendants, o
       ORDER BY o.createdAt ASC
+      WITH m, ancestors, descendants,
+           collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) as observations
       
       RETURN m.id as id,
              m.name as name,
@@ -243,7 +245,7 @@ export class SimplifiedSearchService {
              m.createdAt as createdAt,
              m.modifiedAt as modifiedAt,
              m.lastAccessed as lastAccessed,
-             collect(DISTINCT {id: o.id, content: o.content, createdAt: o.createdAt}) as observations,
+             observations,
              ancestors,
              descendants
       ORDER BY m.name

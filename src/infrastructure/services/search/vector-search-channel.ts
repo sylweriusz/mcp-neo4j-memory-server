@@ -64,7 +64,7 @@ export class VectorSearchChannel {
       }
       
       this.gdsVerified = true;
-      console.info('[VectorSearch] Neo4j GDS plugin verified successfully');
+      // Silent verification - no operational noise
       
     } catch (error) {
       this.gdsVerified = false;

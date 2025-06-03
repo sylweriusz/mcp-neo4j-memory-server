@@ -5,7 +5,7 @@
  */
 
 import { Neo4jDriverManager, SessionFactory, IndexManager, CleanDatabaseManager } from '../infrastructure/database';
-import { Neo4jMemoryRepository } from '../infrastructure/repositories/neo4j-memory-repository';
+import { CompositeMemoryRepository } from '../infrastructure/repositories/memory';
 import { Neo4jSearchRepository } from '../infrastructure/repositories/neo4j-search-repository';
 import { CreateMemoryUseCase } from '../application/use-cases/create-memory';
 import { SearchMemoriesUseCase } from '../application/use-cases/search-memories';
@@ -28,7 +28,7 @@ export class DIContainer {
   private embeddingService!: XenovaEmbeddingService;
   
   // Repositories
-  private memoryRepository!: Neo4jMemoryRepository;
+  private memoryRepository!: CompositeMemoryRepository;
   private searchRepository!: Neo4jSearchRepository;
   
   // Use Cases
@@ -69,7 +69,7 @@ export class DIContainer {
   }
 
   private initializeRepositories(): void {
-    this.memoryRepository = new Neo4jMemoryRepository(this.sessionFactory);
+    this.memoryRepository = new CompositeMemoryRepository(this.sessionFactory);
     this.searchRepository = new Neo4jSearchRepository(this.sessionFactory);
   }
 
@@ -121,7 +121,7 @@ export class DIContainer {
     return this.databaseManager;
   }
 
-  getMemoryRepository(): Neo4jMemoryRepository {
+  getMemoryRepository(): CompositeMemoryRepository {
     return this.memoryRepository;
   }
 
@@ -138,13 +138,14 @@ export class DIContainer {
   }
 
   async initializeDatabase(): Promise<void> {
+    // CRITICAL FIX: Preload model BEFORE creating IndexManager
+    // This ensures dimensions are available when vector indexes are created
+    await this.embeddingService.preloadModel();
+    
     const session = this.sessionFactory.createSession();
     this.indexManager = new IndexManager(session);
     
     try {
-      // Pre-download embedding model to ensure it's available
-      await this.embeddingService.preloadModel();
-      
       const hasSchema = await this.indexManager.hasRequiredSchema();
       if (!hasSchema) {
         await this.indexManager.initializeSchema();

@@ -35,6 +35,9 @@ export class ManageObservationsUseCase {
       throw new Error(`Memory with id ${request.memoryId} not found`);
     }
 
+    // VALIDATE: For delete operation, ensure contents are observation IDs
+    this.validateObservationIds(request.contents);
+
     // Delete observations from the memory
     return await this.memoryRepository.deleteObservations(
       request.memoryId, 
@@ -65,5 +68,38 @@ export class ManageObservationsUseCase {
     }
     
     return results;
+  }
+
+  /**
+   * Validate that provided strings are observation IDs for delete operations
+   * Observation IDs must be 18-character BASE85 identifiers
+   */
+  private validateObservationIds(contents: string[]): void {
+    for (const content of contents) {
+      if (!this.isValidObservationId(content)) {
+        throw new Error(
+          `DELETE operation requires observation IDs, not content strings. ` +
+          `Received: "${content}". ` +
+          `Expected: 18-character BASE85 identifier (e.g., "dZD1/D-Ljt*!I?R)\`-"). ` +
+          `To delete observations: 1) First search/retrieve memory to get observation IDs, ` +
+          `2) Then use those IDs for deletion.`
+        );
+      }
+    }
+  }
+
+  /**
+   * Check if string matches observation ID pattern (18-char BASE85)
+   */
+  private isValidObservationId(str: string): boolean {
+    // Observation IDs are 18 characters long and use BASE85 charset
+    if (str.length !== 18) {
+      return false;
+    }
+    
+    // BASE85 charset: 0-9, A-Z, a-z, and specific symbols
+    // From id_generator.ts: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+,-./:;=?@_{}~`'
+    const base85Pattern = /^[0-9A-Za-z!#$%&()*+,\-./:;=?@_{}~`]+$/;
+    return base85Pattern.test(str);
   }
 }

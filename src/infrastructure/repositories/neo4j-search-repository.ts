@@ -7,7 +7,7 @@
 
 import { SearchRepository, SearchRequest, SearchResult } from '../../domain/repositories/search-repository';
 import { SessionFactory } from '../database/session-factory';
-import { TruthFirstSearchOrchestrator, TruthSearchResult } from '../services/search';
+import { TruthFirstSearchOrchestrator, PracticalHybridSearchResult } from '../services/search';
 
 /**
  * Truth-first search repository implementation
@@ -42,38 +42,36 @@ export class Neo4jSearchRepository implements SearchRepository {
   }
 
   /**
-   * Convert truth-first results to legacy SearchResult format
+   * Convert practical hybrid results to legacy SearchResult format
    * Maintains backward compatibility with existing use cases
    */
-  private convertToSearchResults(truthResults: TruthSearchResult[]): SearchResult[] {
-    return truthResults.map(result => ({
+  private convertToSearchResults(hybridResults: PracticalHybridSearchResult[]): SearchResult[] {
+    return hybridResults.map(result => ({
       memory: {
         id: result.id,
         name: result.name,
         memoryType: result.type,
         observations: result.observations,
         metadata: result.metadata,
-        createdAt: result.createdAt,
-        modifiedAt: result.modifiedAt,
-        lastAccessed: result.lastAccessed,
+        createdAt: result.createdAt ? new Date(result.createdAt) : new Date(),
+        modifiedAt: result.modifiedAt ? new Date(result.modifiedAt) : new Date(),
+        lastAccessed: result.lastAccessed ? new Date(result.lastAccessed) : new Date(),
         related: result.related
       },
       score: result.score || 0,
-      matchType: this.determineMatchType(result.matchReason)
+      matchType: this.determineMatchType(result.matchType)
     }));
   }
 
   /**
-   * Map truth-first match reasons to legacy match types
+   * Map practical hybrid match types to legacy match types
    */
-  private determineMatchType(matchReason: string): 'vector' | 'metadata' | 'fulltext' {
-    switch (matchReason) {
-      case 'exact_metadata':
-      case 'perfect_truth':
-        return 'metadata';
-      case 'exact_content':
-        return 'fulltext';
+  private determineMatchType(matchType: 'semantic' | 'exact'): 'vector' | 'metadata' | 'fulltext' {
+    switch (matchType) {
       case 'semantic':
+        return 'vector';
+      case 'exact':
+        return 'metadata';
       default:
         return 'vector';
     }

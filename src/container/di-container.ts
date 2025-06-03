@@ -20,26 +20,26 @@ export class DIContainer {
   private static instance: DIContainer;
   
   // Infrastructure
-  private driverManager: Neo4jDriverManager;
-  private sessionFactory: SessionFactory;
-  private indexManager: IndexManager;
-  private databaseManager: CleanDatabaseManager;
+  private driverManager!: Neo4jDriverManager;
+  private sessionFactory!: SessionFactory;
+  private indexManager!: IndexManager;
+  private databaseManager!: CleanDatabaseManager;
   
   // Services
-  private embeddingService: XenovaEmbeddingService;
-  private searchOrchestrator: TruthFirstSearchOrchestrator;
+  private embeddingService!: XenovaEmbeddingService;
+  private searchOrchestrator!: TruthFirstSearchOrchestrator;
   
   // Repositories
-  private memoryRepository: Neo4jMemoryRepository;
-  private searchRepository: Neo4jSearchRepository;
+  private memoryRepository!: Neo4jMemoryRepository;
+  private searchRepository!: Neo4jSearchRepository;
   
   // Use Cases
-  private createMemoryUseCase: CreateMemoryUseCase;
-  private searchMemoriesUseCase: SearchMemoriesUseCase;
-  private updateMemoryUseCase: UpdateMemoryUseCase;
-  private deleteMemoryUseCase: DeleteMemoryUseCase;
-  private manageObservationsUseCase: ManageObservationsUseCase;
-  private manageRelationsUseCase: ManageRelationsUseCase;
+  private createMemoryUseCase!: CreateMemoryUseCase;
+  private searchMemoriesUseCase!: SearchMemoriesUseCase;
+  private updateMemoryUseCase!: UpdateMemoryUseCase;
+  private deleteMemoryUseCase!: DeleteMemoryUseCase;
+  private manageObservationsUseCase!: ManageObservationsUseCase;
+  private manageRelationsUseCase!: ManageRelationsUseCase;
 
   // Session tracking for cleanup (GDD v2.0.13)
   private activeSessions: any[] = [];

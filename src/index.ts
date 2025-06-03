@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // CRITICAL: Load environment variables FIRST, before any other imports
-import dotenv from "dotenv";
-dotenv.config();
+import { config } from "dotenv";
+config();
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -173,6 +173,9 @@ server.tool(
   async ({ operation, observations }) => {
     try {
       const { observationHandler } = await getHandlers();
+      if (!observationHandler) {
+        throw new Error("Observation handler not initialized");
+      }
       const result = await observationHandler.handleObservationManage({ operation, observations });
       return {
         content: [{
@@ -237,6 +240,9 @@ server.tool(
   async ({ operation, relations }) => {
     try {
       const { relationHandler } = await getHandlers();
+      if (!relationHandler) {
+        throw new Error("Relation handler not initialized");
+      }
       const result = await relationHandler.handleRelationManage({ operation, relations });
       return {
         content: [{
@@ -268,6 +274,9 @@ server.tool(
   async ({ databaseName }) => {
     try {
       const { databaseHandler } = await getHandlers();
+      if (!databaseHandler) {
+        throw new Error("Database handler not initialized");
+      }
       const databaseInfo = await databaseHandler.handleDatabaseSwitch(databaseName);
       return {
         content: [{

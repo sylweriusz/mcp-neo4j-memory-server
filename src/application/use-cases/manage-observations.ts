@@ -4,6 +4,7 @@
  */
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
+import { createErrorMessage } from '../../infrastructure/utilities';
 
 export interface ObservationRequest {
   memoryId: string;
@@ -45,7 +46,7 @@ export class ManageObservationsUseCase {
     operation: 'add' | 'delete',
     requests: ObservationRequest[]
   ): Promise<{ processed: number; errors: string[] }> {
-    const results = { processed: 0, errors: [] };
+    const results: { processed: number; errors: string[] } = { processed: 0, errors: [] };
     
     for (const request of requests) {
       try {
@@ -58,7 +59,7 @@ export class ManageObservationsUseCase {
         }
       } catch (error) {
         results.errors.push(
-          `Failed to ${operation} observations for memory ${request.memoryId}: ${error.message}`
+          createErrorMessage(`Failed to ${operation} observations for memory ${request.memoryId}`, error)
         );
       }
     }

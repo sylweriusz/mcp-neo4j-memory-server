@@ -3,6 +3,7 @@
  * Single responsibility: handle observation-related MCP requests
  */
 import { DIContainer } from '../../container/di-container';
+import { getErrorMessage } from '../../infrastructure/utilities';
 
 export class McpObservationHandler {
   private container: DIContainer;
@@ -51,7 +52,7 @@ export class McpObservationHandler {
         results.push({ 
           memoryId: obsRequest.memoryId, 
           status: "failed", 
-          error: error.message 
+          error: getErrorMessage(error)
         });
       }
     }

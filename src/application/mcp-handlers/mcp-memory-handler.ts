@@ -3,6 +3,7 @@
  * Single responsibility: handle memory-related MCP requests using clean architecture
  */
 import { DIContainer } from '../../container/di-container';
+import { createErrorMessage } from '../../infrastructure/utilities';
 
 export class McpMemoryHandler {
   private container: DIContainer;
@@ -99,7 +100,7 @@ export class McpMemoryHandler {
         results.push({
           id: memoryInput.name || "unknown",
           status: "failed",
-          error: `Failed to create memory: ${error.message}`
+          error: createErrorMessage("Failed to create memory", error)
         });
       }
     }
@@ -139,7 +140,7 @@ export class McpMemoryHandler {
         results.push({
           id: updateInput.id || "unknown",
           status: "failed",
-          error: `Failed to update memory: ${error.message}`
+          error: createErrorMessage("Failed to update memory", error)
         });
       }
     }
@@ -179,7 +180,7 @@ export class McpMemoryHandler {
         results.push({ 
           id, 
           status: "failed",
-          error: `Failed to delete memory: ${error.message}` 
+          error: createErrorMessage("Failed to delete memory", error)
         });
       }
     }

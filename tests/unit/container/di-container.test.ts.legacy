@@ -1,0 +1,180 @@
+/**
+ * DI Container Tests - Infrastructure Foundation
+ * Single responsibility: Test dependency injection and lifecycle management
+ * 
+ * Test Coverage Target: 85%+ (Critical infrastructure component)
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DIContainer } from '../../../src/container/di-container';
+
+// Mock all external dependencies
+vi.mock('../../../src/infrastructure/database');
+vi.mock('../../../src/infrastructure/services/embedding-service');
+vi.mock('../../../src/infrastructure/services/search');
+vi.mock('../../../src/infrastructure/repositories/neo4j-memory-repository');
+vi.mock('../../../src/infrastructure/repositories/neo4j-search-repository');
+
+describe('DIContainer - Dependency Management', () => {
+  let container: DIContainer;
+
+  beforeEach(() => {
+    // Clear any existing singleton instance
+    (DIContainer as any).instance = undefined;
+    container = DIContainer.getInstance();
+  });
+
+  afterEach(async () => {
+    // Clean up resources
+    try {
+      await container.close();
+    } catch (error) {
+      // Ignore cleanup errors in tests
+    }
+    (DIContainer as any).instance = undefined;
+  });
+
+  describe('Singleton Pattern', () => {
+    it('should return the same instance on multiple calls', () => {
+      // Act
+      const instance1 = DIContainer.getInstance();
+      const instance2 = DIContainer.getInstance();
+
+      // Assert
+      expect(instance1).toBe(instance2);
+      expect(instance1).toBe(container);
+    });
+
+    it('should initialize components only once', () => {
+      // Act
+      const useCase1 = container.getCreateMemoryUseCase();
+      const useCase2 = container.getCreateMemoryUseCase();
+
+      // Assert
+      expect(useCase1).toBe(useCase2);
+    });
+  });
+
+  describe('Use Case Getters', () => {
+    it('should provide CreateMemoryUseCase', () => {
+      // Act
+      const useCase = container.getCreateMemoryUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('CreateMemoryUseCase');
+    });
+
+    it('should provide SearchMemoriesUseCase', () => {
+      // Act
+      const useCase = container.getSearchMemoriesUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('SearchMemoriesUseCase');
+    });
+
+    it('should provide UpdateMemoryUseCase', () => {
+      // Act
+      const useCase = container.getUpdateMemoryUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('UpdateMemoryUseCase');
+    });
+
+    it('should provide DeleteMemoryUseCase', () => {
+      // Act
+      const useCase = container.getDeleteMemoryUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('DeleteMemoryUseCase');
+    });
+
+    it('should provide ManageObservationsUseCase', () => {
+      // Act
+      const useCase = container.getManageObservationsUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('ManageObservationsUseCase');
+    });
+
+    it('should provide ManageRelationsUseCase', () => {
+      // Act
+      const useCase = container.getManageRelationsUseCase();
+
+      // Assert
+      expect(useCase).toBeDefined();
+      expect(useCase.constructor.name).toBe('ManageRelationsUseCase');
+    });
+  });
+
+  describe('Service Getters', () => {
+    it('should provide EmbeddingService', () => {
+      // Act
+      const service = container.getEmbeddingService();
+
+      // Assert
+      expect(service).toBeDefined();
+      expect(service.constructor.name).toBe('XenovaEmbeddingService');
+    });
+
+    it('should provide SearchOrchestrator', () => {
+      // Act
+      const orchestrator = container.getSearchOrchestrator();
+
+      // Assert
+      expect(orchestrator).toBeDefined();
+      expect(orchestrator.constructor.name).toBe('TruthFirstSearchOrchestrator');
+    });
+
+    it('should provide DatabaseManager', () => {
+      // Act
+      const manager = container.getDatabaseManager();
+
+      // Assert
+      expect(manager).toBeDefined();
+      expect(manager.constructor.name).toBe('CleanDatabaseManager');
+    });
+
+    it('should provide MemoryRepository', () => {
+      // Act
+      const repository = container.getMemoryRepository();
+
+      // Assert
+      expect(repository).toBeDefined();
+      expect(repository.constructor.name).toBe('Neo4jMemoryRepository');
+    });
+
+    it('should provide SessionFactory', () => {
+      // Act
+      const factory = container.getSessionFactory();
+
+      // Assert
+      expect(factory).toBeDefined();
+      expect(factory.constructor.name).toBe('SessionFactory');
+    });
+  });
+
+  describe('Database Context Management', () => {
+    it('should provide current database information', () => {
+      // Act
+      const dbInfo = container.getCurrentDatabase();
+
+      // Assert
+      expect(dbInfo).toBeDefined();
+      expect(dbInfo).toHaveProperty('database');
+      expect(typeof dbInfo.database).toBe('string');
+    });
+
+    it('should allow database switching', () => {
+      // Arrange
+      const newDatabase = 'test-switch-db';
+
+      // Act & Assert - Should not throw
+      expect(() => container.switchDatabase(newDatabase)).not.toThrow();
+    });
+  });
+});

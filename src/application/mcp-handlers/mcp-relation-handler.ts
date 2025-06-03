@@ -3,6 +3,7 @@
  * Single responsibility: handle relation-related MCP requests
  */
 import { DIContainer } from '../../container/di-container';
+import { getErrorMessage } from '../../infrastructure/utilities';
 
 export class McpRelationHandler {
   private container: DIContainer;
@@ -44,7 +45,7 @@ export class McpRelationHandler {
           toId: relation.toId, 
           relationType: relation.relationType,
           status: "failed", 
-          error: error.message 
+          error: getErrorMessage(error)
         });
       }
     }

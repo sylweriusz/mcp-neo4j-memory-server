@@ -5,6 +5,7 @@
  */
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
+import { createErrorMessage } from '../../infrastructure/utilities';
 
 export interface RelationRequest {
   fromId: string;
@@ -63,7 +64,7 @@ export class ManageRelationsUseCase {
     operation: 'create' | 'delete',
     requests: RelationRequest[]
   ): Promise<{ processed: number; errors: string[] }> {
-    const results = { processed: 0, errors: [] };
+    const results: { processed: number; errors: string[] } = { processed: 0, errors: [] };
     
     for (const request of requests) {
       try {
@@ -75,7 +76,7 @@ export class ManageRelationsUseCase {
         results.processed++;
       } catch (error) {
         results.errors.push(
-          `Failed to ${operation} relation ${request.fromId} -> ${request.toId}: ${error.message}`
+          createErrorMessage(`Failed to ${operation} relation ${request.fromId} -> ${request.toId}`, error)
         );
       }
     }

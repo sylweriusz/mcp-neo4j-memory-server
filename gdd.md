@@ -1,4 +1,7 @@
-# Graph Database Design (GDD) - Version 2.2.0
+# Graph Database Design (GDD) - Version 2.3.1
+
+## REVISION NOTES v2.3.1
+**INDEX CLEANUP:** Removed unused indexes (`memory_accessed_idx`, `memory_name_idx`, `relation_type_idx`) that had zero query usage. Added missing critical indexes (`memory_created_idx`, `observation_id_unique`, relationship metadata indexes). Aligned specification with actual implementation. The Implementor's Law: Build exactly what's used.
 
 ## 1. Core Data Model
 
@@ -432,15 +435,71 @@ LIMIT $limit
 - Combine with search criteria using AND logic
 - Maintain through all search phases
 
-### 4.5 Truth Search Response Format
+### 4.5 Practical Hybrid Search Response Format (UPDATED v2.3.0)
+
 ```typescript
-interface TruthSearchResult extends EnhancedSearchResult {
-  score: number;           // Final truth score
-  truthLevel: TruthLevel;  // Classification of match quality
-  matchReason: string;     // "exact_metadata" | "exact_name" | "exact_content" | "semantic"
-  rawVectorScore?: number; // Original similarity score for debugging
+interface SearchResult {
+  score: number;           // Semantic distance when available, else simulated from truthLevel
+  matchType: 'semantic' | 'exact';  // Simple classification
+  // truthLevel: internal only - used for sorting/ranking but not exposed
+}
+
+interface PracticalHybridSearchResult extends EnhancedSearchResult {
+  score: number;           // User-interpretable similarity value
+  matchType: 'semantic' | 'exact';  // Simple binary classification
+  
+  // Internal processing fields (not exposed to end users)
+  _internal?: {
+    truthLevel: TruthLevel;        // Internal ranking logic
+    matchReason: string;           // Detailed classification for debugging
+    rawVectorScore?: number;       // Original similarity when available
+    simulatedScore?: number;       // Derived score for exact matches
+  };
 }
 ```
+
+**Practical Hybrid Score Calculation:**
+```typescript
+function calculatePracticalHybridScore(
+  memory: SearchCandidate,
+  query: QueryIntent,
+  vectorScore?: number
+): { score: number; matchType: 'semantic' | 'exact'; truthLevel: TruthLevel } {
+  
+  // Determine truth level using internal logic
+  const truthLevel = calculateInternalTruthLevel(memory, query, vectorScore);
+  
+  // If we have real vector similarity, use it directly
+  if (vectorScore !== undefined && truthLevel <= TruthLevel.SEMANTIC_CAP) {
+    return {
+      score: vectorScore,           // Raw semantic similarity
+      matchType: 'semantic',
+      truthLevel
+    };
+  }
+  
+  // For exact matches, simulate interpretable similarity values
+  const simulatedScores = {
+    [TruthLevel.PERFECT_TRUTH]: 0.95,    // Very high confidence
+    [TruthLevel.HIGH_CONFIDENCE]: 0.90,  // High confidence  
+    [TruthLevel.EXACT_NAME]: 0.85,       // Name match confidence
+    [TruthLevel.EXACT_CONTENT]: 0.80     // Content match confidence
+  };
+  
+  return {
+    score: simulatedScores[truthLevel] || truthLevel,
+    matchType: 'exact',
+    truthLevel
+  };
+}
+```
+
+**Design Principles:**
+- **User Experience**: Score represents interpretable similarity (0.0-1.0 range)
+- **Implementation**: Truth levels remain internal for ranking and logic
+- **Transparency**: matchType clearly indicates semantic vs exact matching
+- **Consistency**: Semantic scores are real cosine similarity values
+- **Intuitive**: Exact matches get high simulated similarity scores (0.80-0.95)
 
 ## 5. Database Management
 
@@ -451,29 +510,76 @@ interface TruthSearchResult extends EnhancedSearchResult {
 - On-demand database creation
 - Automatic index verification
 
-### 5.2 Database Indexes
+### 5.2 Database Indexes (REVISED v2.3.1 - Reality-Based)
+
+#### **ACTIVE INDEXES** (Used in production queries)
 ```cypher
-// Core constraints
+// Core constraints (CRITICAL - used in all CRUD operations)
 CREATE CONSTRAINT IF NOT EXISTS FOR (m:Memory) REQUIRE m.id IS UNIQUE
+CREATE CONSTRAINT IF NOT EXISTS FOR (o:Observation) REQUIRE o.id IS UNIQUE
 
-// Performance indexes
+// Performance indexes (VERIFIED USAGE)
 CREATE INDEX IF NOT EXISTS memory_type_idx FOR (m:Memory) ON (m.memoryType)
-CREATE INDEX IF NOT EXISTS memory_name_idx FOR (m:Memory) ON (m.name)
-CREATE INDEX IF NOT EXISTS memory_accessed_idx FOR (m:Memory) ON (m.lastAccessed)
-CREATE FULLTEXT INDEX IF NOT EXISTS observation_content FOR (o:Observation) ON EACH [o.content]
-CREATE INDEX IF NOT EXISTS relation_type_idx FOR ()-[r:RELATES_TO]-() ON (r.relationType)
+  // Used in: wildcard-search-service.ts, vector-search-channel.ts
+  // Pattern: WHERE m.memoryType IN $memoryTypes
 
-// Metadata indexes
+CREATE INDEX IF NOT EXISTS memory_created_idx FOR (m:Memory) ON (m.createdAt)
+  // Used in: All search result ordering
+  // Pattern: ORDER BY m.createdAt DESC
+
+// Fulltext indexes (ENHANCED for proper usage)
 CREATE FULLTEXT INDEX memory_metadata_idx IF NOT EXISTS FOR (m:Memory) ON EACH [m.metadata]
+CREATE FULLTEXT INDEX observation_content_idx IF NOT EXISTS FOR (o:Observation) ON EACH [o.content]
 
-// Vector indexes (DozerDB with GDS Plugin - optional but recommended)
+// Vector indexes (GDS Plugin - ACTIVELY USED)
 CREATE VECTOR INDEX IF NOT EXISTS memory_name_vector_idx 
 FOR (m:Memory) ON (m.nameEmbedding)
 OPTIONS {indexConfig: {
   `vector.dimensions`: 384,  // Dynamic - auto-detected from configured model
   `vector.similarity_function`: 'cosine'
 }}
+
+// Enhanced relationship metadata indexes (NEW in v2.3.1)
+CREATE INDEX IF NOT EXISTS relation_strength_idx FOR ()-[r:RELATES_TO]-() ON (r.strength)
+CREATE INDEX IF NOT EXISTS relation_source_idx FOR ()-[r:RELATES_TO]-() ON (r.source)
+CREATE INDEX IF NOT EXISTS relation_created_idx FOR ()-[r:RELATES_TO]-() ON (r.createdAt)
 ```
+
+#### **REMOVED INDEXES** (Not used in any queries)
+```cypher
+// REMOVED: memory_accessed_idx - No queries sort by lastAccessed
+// REMOVED: memory_name_idx - Replaced by fulltext and vector search
+// REMOVED: relation_type_idx - No queries filter by relationType alone
+```
+
+#### **INDEX USAGE VERIFICATION**
+```cypher
+// Query patterns that MUST use these indexes:
+// 1. Memory type filtering:
+WHERE m.memoryType IN $memoryTypes
+
+// 2. Chronological ordering:
+ORDER BY m.createdAt DESC
+
+// 3. Vector similarity (GDS):
+gds.similarity.cosine(m.nameEmbedding, $queryVector)
+
+// 4. Fulltext search (PROPER USAGE):
+CALL db.index.fulltext.queryNodes('memory_metadata_idx', $query)
+CALL db.index.fulltext.queryNodes('observation_content_idx', $query)
+
+// 5. Enhanced relationship filtering:
+WHERE r.strength >= $threshold
+WHERE r.source = 'agent'
+ORDER BY r.createdAt DESC
+```
+
+#### **THE IMPLEMENTOR'S INDEX RULES**
+1. **Every index MUST have a documented query pattern**
+2. **Remove unused indexes immediately**
+3. **Verify index usage with PROFILE queries**
+4. **No "future-proofing" indexes**
+5. **Zero fallback - indexes work or queries fail fast**
 
 ## 5.3 Vector Model Configuration (v2.1.2)
 
@@ -876,10 +982,38 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **REQUIREMENT**: Search failures MUST be logged for pipeline improvement
 - **IMPLEMENTATION**: No rescue mechanisms that mask true search failures
 
-### 8.16 Performance Optimization (NEW v2.2.0)
-- **REQUIREMENT**: Exact match queries MUST complete in <100ms
-- **REQUIREMENT**: Vector queries MUST complete in <500ms
-- **IMPLEMENTATION**: Use separate Cypher queries for exact vs semantic channels
+### 8.17 Practical Hybrid Score Requirements (NEW v2.3.0)
+- **REQUIREMENT**: SearchResult.score MUST contain interpretable similarity values (0.0-1.0 range)
+- **REQUIREMENT**: When vector similarity available, use raw cosine similarity as score
+- **REQUIREMENT**: For exact matches without vector data, simulate high confidence scores (0.80-0.95)
+- **REQUIREMENT**: matchType MUST be binary classification: 'semantic' | 'exact'
+- **REQUIREMENT**: Truth levels remain internal for ranking logic only
+- **IMPLEMENTATION**: 
+  - Perfect truth matches → score: 0.95, matchType: 'exact'
+  - High confidence exact → score: 0.90, matchType: 'exact'  
+  - Exact name matches → score: 0.85, matchType: 'exact'
+  - Exact content matches → score: 0.80, matchType: 'exact'
+  - Vector similarity → score: raw_cosine_similarity, matchType: 'semantic'
+- **USER EXPERIENCE**: Users get consistent 0-1 similarity interpretation across all match types
+- **DEBUGGING**: Internal _internal field may contain truthLevel, matchReason for development only
+
+### 8.18 Score Consistency Standards (NEW v2.3.0)
+- **REQUIREMENT**: All search responses MUST return interpretable similarity values
+- **REQUIREMENT**: Scores MUST be monotonic with result relevance (higher = more relevant)
+- **REQUIREMENT**: No exposure of internal truth level enumeration to end users
+- **IMPLEMENTATION**: Truth hierarchy logic drives sorting, but score reflects semantic distance
+- **VALIDATION**: Ensure simulated scores for exact matches align with user expectations
+
+### 8.19 Index Usage Standards (NEW v2.3.1)
+- **REQUIREMENT**: Every defined index MUST have documented query patterns that use it
+- **REQUIREMENT**: Unused indexes MUST be immediately removed from schema
+- **IMPLEMENTATION**: 
+  - All indexes must be verified with actual query patterns
+  - FULLTEXT indexes must use proper `CALL db.index.fulltext.queryNodes()` syntax
+  - No speculative "future-proofing" indexes allowed
+  - Index usage must be validated with `PROFILE` queries in development
+- **ENFORCEMENT**: Zero fallback architecture - queries either use indexes or fail fast
+- **DOCUMENTATION**: Each index must include comment showing where it's used in codebase
 
 ## 9. Strategic Relationship Intelligence Guidelines
 

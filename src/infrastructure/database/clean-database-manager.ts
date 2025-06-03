@@ -125,8 +125,19 @@ export class CleanDatabaseManager {
   }
 
   private isValidDatabaseName(name: string): boolean {
-    // Neo4j database name constraints
-    return /^[a-z0-9][a-z0-9._-]*$/.test(name) && name.length <= 63;
+    // Neo4j database name constraints - production compatible
+    if (!name || typeof name !== 'string') {
+      return false;
+    }
+    
+    // Check length constraints
+    if (name.length === 0 || name.length > 63) {
+      return false;
+    }
+    
+    // Neo4j constraints: lowercase letters, numbers, dots, underscores, hyphens only
+    // Must start with alphanumeric character (Neo4j requirement)
+    return /^[a-z0-9][a-z0-9._-]*$/.test(name);
   }
 
   async close(): Promise<void> {

@@ -28,7 +28,7 @@ export class UpdateMemoryUseCase {
       ...(request.name && { name: request.name }),
       ...(request.memoryType && { memoryType: request.memoryType }),
       ...(request.metadata && { metadata: request.metadata }),
-      modifiedAt: new Date().toISOString()
+      modifiedAt: new Date()
     };
 
     return await this.memoryRepository.update(updatedMemory);

@@ -5,7 +5,7 @@
  * GREYPLAN: Eliminate duplication, fix types, optimize queries
  */
 
-import { Memory } from '../../domain/entities/memory';
+import { Memory, MemoryValidator } from '../../domain/entities/memory';
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { SessionFactory } from '../database/session-factory';
 import { Session } from 'neo4j-driver';
@@ -223,15 +223,15 @@ export class Neo4jMemoryRepository implements MemoryRepository {
       
       // Return the updated memory domain entity
       const updatedRecord = result.records[0].get('m');
-      return new Memory(
-        updatedRecord.properties.id,
-        updatedRecord.properties.name,
-        updatedRecord.properties.memoryType,
-        this.parseMetadata(updatedRecord.properties.metadata),
-        new Date(updatedRecord.properties.createdAt),
-        new Date(updatedRecord.properties.modifiedAt),
-        new Date(updatedRecord.properties.lastAccessed)
-      );
+      return {
+        id: updatedRecord.properties.id,
+        name: updatedRecord.properties.name,
+        memoryType: updatedRecord.properties.memoryType,
+        metadata: this.parseMetadata(updatedRecord.properties.metadata),
+        createdAt: new Date(updatedRecord.properties.createdAt),
+        modifiedAt: new Date(updatedRecord.properties.modifiedAt),
+        lastAccessed: new Date(updatedRecord.properties.lastAccessed)
+      };
     });
   }
   

@@ -1,4 +1,4 @@
-# Graph Database Design (GDD) - Version 2.0.12
+# Graph Database Design (GDD) - Version 2.0.13
 
 ## 1. Core Data Model
 
@@ -14,7 +14,7 @@
     - `createdAt` (ISO timestamp): Memory creation time
     - `modifiedAt` (ISO timestamp): Last memory modification time
     - `lastAccessed` (ISO timestamp): Last retrieval time
-    - `nameEmbedding` (float array, 768 dimensions): Vector embedding for semantic search
+    - `nameEmbedding` (float array): Vector embedding for semantic search
     - `tags` (string array): Automatically extracted tags
 
 - `Observation`: Discrete information fragments (narrative content)
@@ -29,6 +29,7 @@
 - `Tag`: Extracted keywords
   - Properties:
     - `name` (string, unique): Tag identifier
+    - `embedding` (float array): Vector embedding for semantic deduplication
 
 #### Relationship Types
 - `HAS_OBSERVATION`:
@@ -74,7 +75,7 @@ type Memory = {
   createdAt?: string;      // ISO timestamp of creation
   modifiedAt?: string;     // ISO timestamp of last modification
   lastAccessed?: string;   // ISO timestamp of last access
-  nameEmbedding?: number[]; // Vector embedding (768-dimension)
+  nameEmbedding?: number[]; // Vector embedding for semantic search
   tags?: string[];         // Extracted tags (maximum 6 per memory)
   observations: Array<{    // Observation objects with temporal context
     content: string;       // Observation text content
@@ -544,6 +545,13 @@ Output: ["react native", "firebase", "aplikacji", "mobilnej", "backend"]
 - **New Tag Preference**: When observations are added, new tag candidates receive a 10% weight boost (1.1x multiplier)
 - **Rationale**: Maintains tag relevance by slightly favoring recent context while preserving historical accuracy
 - **Implementation**: Apply 1.1x weight multiplier to tags extracted from new observations during re-extraction
+
+### 6.9 Tag Embedding Storage (v2.0.13)
+- **Design Principle**: Store embeddings directly in Tag nodes, analogous to Memory.nameEmbedding pattern
+- **Property**: `Tag.embedding` (float array) - Vector embedding for semantic deduplication
+- **Performance Goal**: Cache hit rate >95% for tag similarity calculations
+- **Storage Pattern**: Always stored for consistent performance
+- **Rationale**: Eliminates repeated embedding calculations during tag similarity operations
 
 ## 7. API Interface
 

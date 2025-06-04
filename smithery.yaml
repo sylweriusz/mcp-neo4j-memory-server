@@ -3,7 +3,7 @@
 name: Neo4j Knowledge Graph Memory
 description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features enhanced semantic search, knowledge graphs, and sophisticated tag extraction for AI memory systems.
 license: MIT
-version: 2.3.1
+version: 2.3.8
 author: sylweriusz
 repository: https://github.com/sylweriusz/mcp-neo4j-memory-server
 
@@ -17,11 +17,11 @@ documentation:
   installation: |
     ### Installing via NPM
     ```bash
-    npm install @sylweriusz/mcp-neo4j-memory-v2
+    npm install @sylweriusz/mcp-neo4j-memory-server
     ```
 
     ### Manual Installation
-    Add `@sylweriusz/mcp-neo4j-memory-v2` in your `claude_desktop_config.json`:
+    Add `@sylweriusz/mcp-neo4j-memory-server` in your `claude_desktop_config.json`:
     ```json
     {
       "mcpServers": {
@@ -29,7 +29,7 @@ documentation:
           "command": "npx",
           "args": [
             "-y",
-            "@sylweriusz/mcp-neo4j-memory-v2"
+            "@sylweriusz/mcp-neo4j-memory-server"
           ],
           "env": {
             "NEO4J_URI": "bolt://localhost:7687",

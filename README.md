@@ -110,21 +110,38 @@ The server provides 6 MCP tools that integrate automatically with Claude:
 
 For memory-focused workflows:
 
-```text
-You have persistent memory via MCP tools. Search existing memories before creating new ones. 
+```markdown
+# MCP Memory Essentials
 
-MEMORY TYPES:
-- user: Personal preferences/info
-- project: Work items  
-- conversation: Key discussion points
-- knowledge: Facts and references
+## SETUP (do this first!)
+**Switch to project database**: `database_switch("project-memory-name")`
 
-Use metadata for searchable fields, observations for detailed content.
+## CRITICAL WORKFLOW (must follow)
+1. **Search first**: `memory_search()` before creating
+2. **Memory exists?** → Add observations with `observation_manage()`
+3. **Memory doesn't exist?** → Create with `memory_manage()`, then add observations with `observation_manage()`
 
-ARCHITECTURE NOTES:
-- Vector search supports GDS Plugin (fast) or in-memory calculation (slower)  
-- System follows zero-fallback principle - explicit errors instead of hidden failures
-- All vector similarity scores are real embeddings, not static weights
+## CORE RULES (non-negotiable)
+- **Language**: Match user's language, add `{language: 'en'}` to metadata
+- **Structure**: Metadata = overviews, Observations = complete modules
+- **One concept = one memory**: Don't create 5 memories for related things
+
+## OBSERVATION COMPLETENESS TEST
+When adding an observation, ask: "Is this self-contained?"
+- ❌ Bad: "Step 3: Click submit button" (fragment)
+- ✅ Good: "Login process: 1) Enter email 2) Enter password 3) Click submit 4) Handle 2FA if enabled" (complete module)
+
+
+
+## OPTIONAL TUNING
+
+# Relationships (when connecting memories)
+- Strength: 0.9 (critical) → 0.1 (weak)  
+- Source: "agent" or "user"
+
+# Health monitoring
+- Run memory_search('*', limit: 100) periodically
+- Watch for 1-observation memories or generic names
 ```
 
 ## Troubleshooting

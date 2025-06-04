@@ -1,6 +1,6 @@
 {
   "name": "@sylweriusz/mcp-neo4j-memory-server",
-  "version": "2.3.8",
+  "version": "2.3.10",
   "private": false,
   "description": "MCP Memory Server with Neo4j backend",
   "homepage": "https://github.com/sylweriusz/mcp-neo4j-memory-server",
@@ -12,8 +12,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "pnpm build && npx @modelcontextprotocol/inspector pnpm start",
-    "build": "tsup && shx chmod +x dist/index.mjs",
+    "dev:http": "pnpm build && node dist/http/server.mjs",
+    "build": "tsup && shx chmod +x dist/index.mjs && shx chmod +x dist/http/server.mjs",
     "start": "node dist/index.mjs",
+    "start:http": "node dist/http/server.mjs",
     "prepare": "npm run build",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
@@ -41,16 +43,20 @@
     "@modelcontextprotocol/sdk": "^1.6.0",
     "@xenova/transformers": "^2.17.2",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "neo4j-driver": "^5.18.0",
     "ulid": "^3.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.5",
+    "@types/supertest": "^2.0.16",
     "@vitest/coverage-v8": "^3.1.1",
     "prettier": "^3.5.2",
     "shx": "^0.3.4",
+    "supertest": "^6.3.4",
     "tsup": "^8.4.0",
     "typescript": "^5.7.3",
     "vitest": "^3.0.7"

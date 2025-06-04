@@ -1,0 +1,246 @@
+#!/usr/bin/env node
+
+/**
+ * HTTP Transport Server - Working Implementation
+ * The Implementor's Rule: Build exactly what works, nothing more
+ */
+
+// CRITICAL: Load environment first
+import { config } from "dotenv";
+config();
+
+import express from "express";
+import { randomUUID } from "node:crypto";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+// Import existing MCP handlers
+import { 
+  McpMemoryHandler, 
+  McpObservationHandler, 
+  McpRelationHandler, 
+  McpDatabaseHandler 
+} from "../application/mcp-handlers";
+import { DIContainer } from "../container/di-container";
+import { MemoryObject } from "../types";
+
+/**
+ * Create and configure MCP server with tools
+ * Based on index.ts - exact same functionality
+ */
+function createMCPServer(): McpServer {
+  const server = new McpServer({
+    name: "neo4j-memory-server",
+    version: "2.3.1"
+  });
+
+  // Lazy initialization - same pattern as index.ts
+  let memoryHandler: McpMemoryHandler | null = null;
+  let observationHandler: McpObservationHandler | null = null;
+  let relationHandler: McpRelationHandler | null = null;
+  let databaseHandler: McpDatabaseHandler | null = null;
+
+  const getHandlers = async () => {
+    if (!memoryHandler) {
+      try {
+        memoryHandler = new McpMemoryHandler();
+        observationHandler = new McpObservationHandler();
+        relationHandler = new McpRelationHandler();
+        databaseHandler = new McpDatabaseHandler();
+        
+        const container = DIContainer.getInstance();
+        await container.initializeDatabase();
+      } catch (error) {
+        throw error;
+      }
+    }
+    return { memoryHandler, observationHandler, relationHandler, databaseHandler };
+  };
+
+  // Register memory_manage tool (copied from index.ts)
+  server.tool(
+    "memory_manage",
+    "Create, update, or delete memories in the knowledge graph.",
+    {
+      operation: z.enum(['create', 'update', 'delete']).describe("Operation type"),
+      memories: z.array(MemoryObject).optional().describe("Memories to create"),
+      updates: z.array(z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        memoryType: z.string().optional(),
+        metadata: z.record(z.any()).optional()
+      })).optional(),
+      identifiers: z.array(z.string()).optional()
+    },
+    async ({ operation, memories, updates, identifiers }) => {
+      try {
+        const { memoryHandler } = await getHandlers();
+        const result = await memoryHandler.handleMemoryManage({ operation, memories, updates, identifiers });
+        
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(
+              { error: "Error managing memories", details: String(error) },
+              null, 2
+            ),
+          }],
+        };
+      }
+    }
+  );
+
+  // Add remaining tools here as needed
+  return server;
+}
+
+/**
+ * Simple HTTP Transport Server
+ * Based on working patterns from SDK examples
+ */
+class SimpleHTTPServer {
+  private app: express.Application;
+  private mcpServer: McpServer;
+  private transports: Map<string, StreamableHTTPServerTransport> = new Map();
+
+  constructor() {
+    this.app = express();
+    this.mcpServer = createMCPServer();
+    this.setupMiddleware();
+    this.setupRoutes();
+  }
+
+  private setupMiddleware(): void {
+    this.app.use(express.json({ limit: '10mb' }));
+    
+    // CORS
+    this.app.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id');
+      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+      
+      if (req.method === 'OPTIONS') {
+        res.status(200).send();
+        return;
+      }
+      next();
+    });
+  }
+
+  private setupRoutes(): void {
+    // Health check
+    this.app.get('/health', (req, res) => {
+      res.json({ 
+        status: 'healthy', 
+        sessions: this.transports.size,
+        transport: 'streamable-http'
+      });
+    });
+
+    // MCP endpoint - stateful session pattern
+    this.app.all('/mcp', async (req, res) => {
+      try {
+        await this.handleMCPRequest(req, res);
+      } catch (error) {
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Internal server error" },
+          id: null
+        });
+      }
+    });
+  }
+  private async handleMCPRequest(req: express.Request, res: express.Response): Promise<void> {
+    const sessionId = req.headers['mcp-session-id'] as string;
+    
+    if (req.method === 'DELETE') {
+      // Session termination
+      if (sessionId && this.transports.has(sessionId)) {
+        this.transports.delete(sessionId);
+        res.status(204).send();
+      } else {
+        res.status(404).json({ error: 'Session not found' });
+      }
+      return;
+    }
+
+    if (req.method === 'GET') {
+      // SSE not implemented
+      res.status(501).json({ error: 'SSE not implemented' });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      let transport: StreamableHTTPServerTransport;
+      let newSessionId: string | undefined;
+
+      if (sessionId && this.transports.has(sessionId)) {
+        // Use existing session
+        transport = this.transports.get(sessionId)!;
+      } else if (isInitializeRequest(req.body)) {
+        // Create new session
+        newSessionId = randomUUID();
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => newSessionId!,
+        });
+        
+        // Connect to MCP server
+        await this.mcpServer.connect(transport);
+        this.transports.set(newSessionId, transport);
+      } else {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          error: { code: -32600, message: "Missing session ID" },
+          id: null
+        });
+        return;
+      }
+
+      // Handle the request using transport
+      await transport.handleRequest(req, res, req.body);
+    }
+  }
+
+  public async start(port: number = 3000): Promise<void> {
+    return new Promise((resolve) => {
+      this.app.listen(port, () => {
+        resolve();
+      });
+    });
+  }
+}
+
+// Main entry point
+const main = async () => {
+  const httpServer = new SimpleHTTPServer();
+  const port = parseInt(process.env.HTTP_PORT || '3000');
+  
+  try {
+    await httpServer.start(port);
+    
+    const cleanup = () => process.exit(0);
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
+    
+  } catch (error) {
+    process.exit(1);
+  }
+};
+
+// Export for testing
+export { SimpleHTTPServer };
+
+// Run if executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(() => process.exit(1));
+}

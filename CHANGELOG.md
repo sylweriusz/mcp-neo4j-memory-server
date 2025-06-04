@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-06-04
+
+### Added
+- **Streamable HTTP Transport**: Complete implementation of HTTP transport wrapper following MCP Streamable HTTP specification
+- **Dual Transport Support**: Server now supports both stdio and HTTP transports with identical functionality
+- **Session Management**: Stateful session handling with UUID tracking and automatic cleanup
+- **CORS Support**: Full CORS configuration for web-based MCP applications
+- **Health Monitoring**: HTTP `/health` endpoint for container monitoring and service discovery
+- **Docker HTTP Support**: Container defaults to HTTP transport on port 3000 for Smithery compatibility
+
+### HTTP Transport Features
+- **Single Endpoint**: All MCP communication through `/mcp` endpoint (POST, GET, DELETE)
+- **Session Lifecycle**: Proper session creation, management, and termination
+- **Error Handling**: JSON-RPC compliant error responses with appropriate HTTP status codes
+- **Content Negotiation**: Proper Accept header handling for SSE/JSON responses
+- **Protocol Bridge**: Clean translation between HTTP requests and MCP JSON-RPC messages
+
+### Environment Configuration
+- `HTTP_PORT`: Server port (default: 3000)
+- `HTTP_ENDPOINT`: MCP endpoint path (default: /mcp)
+- `ENABLE_SESSIONS`: Session management toggle (default: true)
+- `CORS_ORIGIN`: CORS policy configuration (default: *)
+
+### NPM Scripts
+- `npm run start:http`: Start HTTP transport server
+- `npm run dev:http`: Development mode with HTTP transport
+- `npm run start`: Original stdio transport (unchanged)
+
+### Technical Architecture
+- **Zero-Fallback Design**: HTTP wrapper delegates to existing MCP handlers without duplication
+- **Protocol Purity**: JSON-RPC over HTTP following official MCP specification
+- **Transport Isolation**: HTTP layer provides pure protocol translation without business logic
+- **Backward Compatibility**: Original stdio transport remains completely untouched
+- **Smithery Ready**: Standard HTTP endpoint exposure with environment-based configuration
+
+### File Structure
+```
+src/http/
+├── server.ts     # Main HTTP transport server
+├── session.ts    # Session management
+├── protocol.ts   # JSON-RPC protocol bridge
+└── types.ts      # HTTP transport types
+```
+
+### Deployment Impact
+- **Docker Default**: Container now uses HTTP transport by default for remote deployments
+- **Smithery Compatible**: Standard HTTP endpoint pattern with health checks
+- **Development Flexibility**: Choose transport method via npm scripts
+- **Production Ready**: Graceful shutdown, error handling, and monitoring endpoints
+
 ## [2.2.0] - 2025-06-01
 
 ### 🚨 BREAKING CHANGES

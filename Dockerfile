@@ -33,11 +33,20 @@ ENV NEO4J_USERNAME=neo4j
 ENV NEO4J_PASSWORD=password
 ENV NEO4J_DATABASE=neo4j
 
+# HTTP Transport environment variables
+ENV HTTP_PORT=3000
+ENV HTTP_ENDPOINT=/mcp
+ENV ENABLE_SESSIONS=true
+ENV CORS_ORIGIN=*
+
 # Add metadata label
 LABEL org.opencontainers.image.title="MCP Memory Graph"
-LABEL org.opencontainers.image.description="Neo4j-based Knowledge Graph with tag search consolidation"
-LABEL org.opencontainers.image.version="2.3.8"
+LABEL org.opencontainers.image.description="Neo4j-based Knowledge Graph with HTTP Transport"
+LABEL org.opencontainers.image.version="2.3.10"
 LABEL org.opencontainers.image.vendor="Sylweriusz"
 
-# Set entrypoint
-ENTRYPOINT ["node", "dist/index.mjs"]
+# Expose HTTP port
+EXPOSE 3000
+
+# Default to HTTP transport for Smithery compatibility
+ENTRYPOINT ["node", "dist/http/server.mjs"]

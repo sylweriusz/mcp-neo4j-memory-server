@@ -106,17 +106,6 @@ The server provides 6 MCP tools that integrate automatically with Claude:
   }
 }
 ```
-
-## Configuration
-
-**Environment Variables:**
-```bash
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your-password
-NEO4J_DATABASE=neo4j                                # Optional, defaults to 'neo4j'
-```
-
 ## System Prompt
 
 For memory-focused workflows:
@@ -141,7 +130,7 @@ ARCHITECTURE NOTES:
 ## Troubleshooting
 
 **Vector Search Issues:**
-- Check logs for `[VectorSearch] GDS Plugin detected` or `in-memory calculation`
+- Check logs for `[VectorSearch] GDS Plugin detected`
 - GDS Plugin requires DozerDB setup (see Neo4j Setup section)
 - In-memory fallback works but is slower for large datasets
 

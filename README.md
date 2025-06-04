@@ -5,7 +5,7 @@ Persistent memory for AI conversations using Neo4j. Store, search, and relate in
 ## Quick Start
 
 ```bash
-npm install @sylweriusz/mcp-neo4j-memory-v2
+npm install @sylweriusz/mcp-neo4j-memory-server
 ```
 
 Add to Claude Desktop config:
@@ -15,7 +15,7 @@ Add to Claude Desktop config:
   "mcpServers": {
     "memory": {
       "command": "npx",
-      "args": ["-y", "@sylweriusz/mcp-neo4j-memory-v2"],
+      "args": ["-y", "@sylweriusz/mcp-neo4j-memory-server"],
       "env": {
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USERNAME": "neo4j", 

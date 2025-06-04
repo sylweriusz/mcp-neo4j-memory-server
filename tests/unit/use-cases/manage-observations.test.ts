@@ -104,7 +104,10 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
 
       const request: ObservationRequest = {
         memoryId: 'mem456',
-        contents: ['obs-id-1', 'obs-id-2'] // These would be observation IDs for deletion
+        contents: [
+          'abcd1234efgh5678AB',  // Valid 18-char BASE85 ID
+          'wxyz9876mnop5432CD'   // Valid 18-char BASE85 ID
+        ]
       };
 
       // Execute
@@ -113,8 +116,8 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
       // Verify
       expect(mockRepository.findById).toHaveBeenCalledWith('mem456');
       expect(mockRepository.deleteObservations).toHaveBeenCalledWith('mem456', [
-        'obs-id-1',
-        'obs-id-2'
+        'abcd1234efgh5678AB',
+        'wxyz9876mnop5432CD'
       ]);
     });
 
@@ -124,7 +127,7 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
 
       const request: ObservationRequest = {
         memoryId: 'missing-memory',
-        contents: ['obs-to-delete']
+        contents: ['abcd1234efgh5678AB'] // Valid observation ID
       };
 
       // Execute & Verify
@@ -145,7 +148,7 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
 
       const request: ObservationRequest = {
         memoryId: 'mem789',
-        contents: ['obs-to-delete']
+        contents: ['abcd1234efgh5678AB'] // Valid observation ID
       };
 
       // Execute & Verify
@@ -182,8 +185,8 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
       mockRepository.deleteObservations = vi.fn().mockResolvedValue(undefined);
 
       const requests: ObservationRequest[] = [
-        { memoryId: 'mem1', contents: ['obs-1'] },
-        { memoryId: 'mem2', contents: ['obs-2', 'obs-3'] }
+        { memoryId: 'mem1', contents: ['abcd1234efgh5678AB'] },  // 1 valid ID
+        { memoryId: 'mem2', contents: ['wxyz9876mnop5432CD', 'efgh1234ijkl5678EF'] }  // 2 valid IDs
       ];
 
       // Execute

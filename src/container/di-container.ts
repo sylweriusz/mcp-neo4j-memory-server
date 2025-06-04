@@ -138,24 +138,48 @@ export class DIContainer {
   }
 
   async initializeDatabase(): Promise<void> {
-    // CRITICAL FIX: Preload model BEFORE creating IndexManager
-    // This ensures dimensions are available when vector indexes are created
-    await this.embeddingService.preloadModel();
-    
+    // Vector indexes will be created when model becomes available
     const session = this.sessionFactory.createSession();
     
-    // Get dimensions for IndexManager (fixes circular dependency)
-    const dimensions = await this.embeddingService.getModelDimensions();
-    this.indexManager = new IndexManager(session, dimensions);
-    
     try {
+      // Fast schema initialization - no model dependencies
+      this.indexManager = new IndexManager(session, undefined);
+      
       const hasSchema = await this.indexManager.hasRequiredSchema();
       if (!hasSchema) {
         await this.indexManager.initializeSchema();
       }
+      
+      // Background model loading - non-blocking
+      this.initializeModelInBackground();
+      
     } finally {
       await session.close();
     }
+  }
+
+  /**
+   * Background model initialization - does not block tool registration
+   */
+  private initializeModelInBackground(): void {
+    // Non-blocking background loading
+    setTimeout(async () => {
+      try {
+        await this.embeddingService.preloadModel();
+        
+        // Create vector indexes once model is loaded
+        const session = this.sessionFactory.createSession();
+        try {
+          const dimensions = await this.embeddingService.getModelDimensions();
+          const vectorIndexManager = new IndexManager(session, dimensions);
+          await vectorIndexManager.ensureVectorIndexes();
+        } finally {
+          await session.close();
+        }
+      } catch (error) {
+        // Silent failure - vector search will work when model loads on demand
+      }
+    }, 100); // 100ms delay - tools appear first, then model loads
   }
 
   async close(): Promise<void> {

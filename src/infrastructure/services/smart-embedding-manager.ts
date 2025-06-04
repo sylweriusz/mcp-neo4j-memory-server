@@ -23,12 +23,7 @@ export class SmartEmbeddingManager implements EmbeddingManager {
   private config = getVectorConfig();
 
   constructor() {
-    if (this.config.preload) {
-      // Silent background loading
-      this.preloadModel().catch(error => {
-        // Silent failure - preload is optional optimization
-      });
-    }
+    // Model loading happens only on first use or explicit preload
   }
 
   async preloadModel(): Promise<void> {

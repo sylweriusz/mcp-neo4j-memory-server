@@ -14,6 +14,7 @@ import { DeleteMemoryUseCase } from '../application/use-cases/delete-memory';
 import { ManageObservationsUseCase } from '../application/use-cases/manage-observations';
 import { ManageRelationsUseCase } from '../application/use-cases/manage-relations';
 import { XenovaEmbeddingService } from '../infrastructure/services/embedding-service';
+import { getVectorConfig } from '../config';
 
 export class DIContainer {
   private static instance: DIContainer;
@@ -162,10 +163,13 @@ export class DIContainer {
    * Background model initialization - does not block tool registration
    */
   private initializeModelInBackground(): void {
-    // Non-blocking background loading
+    // Non-blocking background loading with proper preload handling
     setTimeout(async () => {
       try {
-        await this.embeddingService.preloadModel();
+        const config = getVectorConfig();
+        if (config.preload) {
+          await this.embeddingService.preloadModel();
+        }
         
         // Create vector indexes once model is loaded
         const session = this.sessionFactory.createSession();

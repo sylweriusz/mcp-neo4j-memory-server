@@ -7,9 +7,17 @@ import { getErrorMessage } from '../../infrastructure/utilities';
 
 export class McpRelationHandler {
   private container: DIContainer;
+  private databaseInitialized = false;
 
   constructor() {
     this.container = DIContainer.getInstance();
+  }
+
+  private async ensureDatabaseInitialized(): Promise<void> {
+    if (!this.databaseInitialized) {
+      await this.container.initializeDatabase();
+      this.databaseInitialized = true;
+    }
   }
 
   async handleRelationManage(request: {
@@ -22,6 +30,7 @@ export class McpRelationHandler {
       source?: 'agent' | 'user' | 'system';
     }>;
   }): Promise<any> {
+    await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     const relationUseCase = this.container.getManageRelationsUseCase();
 

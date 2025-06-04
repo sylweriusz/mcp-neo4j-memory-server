@@ -7,9 +7,17 @@ import { getErrorMessage } from '../../infrastructure/utilities';
 
 export class McpObservationHandler {
   private container: DIContainer;
+  private databaseInitialized = false;
 
   constructor() {
     this.container = DIContainer.getInstance();
+  }
+
+  private async ensureDatabaseInitialized(): Promise<void> {
+    if (!this.databaseInitialized) {
+      await this.container.initializeDatabase();
+      this.databaseInitialized = true;
+    }
   }
 
   async handleObservationManage(request: {
@@ -19,6 +27,7 @@ export class McpObservationHandler {
       contents: string[];
     }>;
   }): Promise<any> {
+    await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     const observationUseCase = this.container.getManageObservationsUseCase();
 

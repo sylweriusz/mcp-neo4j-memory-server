@@ -23,7 +23,6 @@ import {
   McpRelationHandler, 
   McpDatabaseHandler 
 } from "../application/mcp-handlers";
-import { DIContainer } from "../container/di-container";
 import { MemoryObject } from "../types";
 
 /**
@@ -69,9 +68,8 @@ function createMCPServer(): McpServer {
       relationHandler = new McpRelationHandler();
       databaseHandler = new McpDatabaseHandler();
       
-      // Database initialization happens only on first actual tool call
-      const container = DIContainer.getInstance();
-      await container.initializeDatabase();
+      // Database initialization deferred to first actual operation
+      // No blocking database operations during tool registration
     } catch (error) {
       // Reset for retry
       memoryHandler = null;

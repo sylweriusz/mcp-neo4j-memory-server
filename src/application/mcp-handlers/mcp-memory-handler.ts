@@ -7,9 +7,17 @@ import { createErrorMessage } from '../../infrastructure/utilities';
 
 export class McpMemoryHandler {
   private container: DIContainer;
+  private databaseInitialized = false;
 
   constructor() {
     this.container = DIContainer.getInstance();
+  }
+
+  private async ensureDatabaseInitialized(): Promise<void> {
+    if (!this.databaseInitialized) {
+      await this.container.initializeDatabase();
+      this.databaseInitialized = true;
+    }
   }
 
   async handleMemoryManage(request: {
@@ -18,6 +26,7 @@ export class McpMemoryHandler {
     updates?: any[];
     identifiers?: string[];
   }): Promise<any> {
+    await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     
     switch (request.operation) {
@@ -33,6 +42,7 @@ export class McpMemoryHandler {
   }
 
   async handleMemoryRetrieve(identifiers: string[]): Promise<any> {
+    await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     const memoryRepo = this.container.getMemoryRepository();
     
@@ -55,6 +65,7 @@ export class McpMemoryHandler {
     threshold?: number
   ): Promise<any> {
     // Parameter validation performed
+    await this.ensureDatabaseInitialized();
     
     const currentDb = this.container.getCurrentDatabase();
     const searchUseCase = this.container.getSearchMemoriesUseCase();

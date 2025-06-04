@@ -13,7 +13,6 @@ import {
   McpRelationHandler, 
   McpDatabaseHandler 
 } from "./application/mcp-handlers";
-import { DIContainer } from "./container/di-container";
 import { MemoryObject } from "./types";
 
 // Create an MCP server with proper configuration
@@ -55,9 +54,8 @@ const initializeHandlers = async () => {
     relationHandler = new McpRelationHandler();
     databaseHandler = new McpDatabaseHandler();
     
-    // Database initialization happens only on first actual tool call
-    const container = DIContainer.getInstance();
-    await container.initializeDatabase();
+    // Database initialization deferred to first actual operation
+    // No blocking database operations during tool registration
   } catch (error) {
     console.error("[MCP Server] Failed to initialize handlers:", error);
     // Reset for retry

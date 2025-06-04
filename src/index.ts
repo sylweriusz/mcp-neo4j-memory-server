@@ -30,7 +30,7 @@ let databaseHandler: McpDatabaseHandler | null = null;
 let initializationPromise: Promise<void> | null = null;
 
 const ensureHandlersInitialized = async () => {
-  if (memoryHandler) {
+  if (memoryHandler && observationHandler && relationHandler && databaseHandler) {
     return { memoryHandler, observationHandler, relationHandler, databaseHandler };
   }
 
@@ -39,6 +39,12 @@ const ensureHandlersInitialized = async () => {
   }
   
   await initializationPromise;
+  
+  // TypeScript assertion: after initializeHandlers completes, all handlers are guaranteed non-null
+  if (!memoryHandler || !observationHandler || !relationHandler || !databaseHandler) {
+    throw new Error("Handler initialization failed - internal error");
+  }
+  
   return { memoryHandler, observationHandler, relationHandler, databaseHandler };
 };
 

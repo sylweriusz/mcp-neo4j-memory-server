@@ -44,7 +44,7 @@ function createMCPServer(): McpServer {
   let initializationPromise: Promise<void> | null = null;
 
   const ensureHandlersInitialized = async () => {
-    if (memoryHandler) {
+    if (memoryHandler && observationHandler && relationHandler && databaseHandler) {
       return { memoryHandler, observationHandler, relationHandler, databaseHandler };
     }
 
@@ -53,6 +53,12 @@ function createMCPServer(): McpServer {
     }
     
     await initializationPromise;
+    
+    // TypeScript assertion: after initializeHandlers completes, all handlers are guaranteed non-null
+    if (!memoryHandler || !observationHandler || !relationHandler || !databaseHandler) {
+      throw new Error("Handler initialization failed - internal error");
+    }
+    
     return { memoryHandler, observationHandler, relationHandler, databaseHandler };
   };
 

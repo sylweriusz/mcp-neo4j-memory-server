@@ -36,27 +36,45 @@ function createMCPServer(): McpServer {
     version: "2.3.1"
   });
 
-  // Lazy initialization - same pattern as index.ts
+  // Ultra-lazy initialization - zero blocking operations during tool registration
   let memoryHandler: McpMemoryHandler | null = null;
   let observationHandler: McpObservationHandler | null = null;
   let relationHandler: McpRelationHandler | null = null;
   let databaseHandler: McpDatabaseHandler | null = null;
+  let initializationPromise: Promise<void> | null = null;
 
-  const getHandlers = async () => {
-    if (!memoryHandler) {
-      try {
-        memoryHandler = new McpMemoryHandler();
-        observationHandler = new McpObservationHandler();
-        relationHandler = new McpRelationHandler();
-        databaseHandler = new McpDatabaseHandler();
-        
-        const container = DIContainer.getInstance();
-        await container.initializeDatabase();
-      } catch (error) {
-        throw error;
-      }
+  const ensureHandlersInitialized = async () => {
+    if (memoryHandler) {
+      return { memoryHandler, observationHandler, relationHandler, databaseHandler };
     }
+
+    if (!initializationPromise) {
+      initializationPromise = initializeHandlers();
+    }
+    
+    await initializationPromise;
     return { memoryHandler, observationHandler, relationHandler, databaseHandler };
+  };
+
+  const initializeHandlers = async () => {
+    try {
+      memoryHandler = new McpMemoryHandler();
+      observationHandler = new McpObservationHandler();
+      relationHandler = new McpRelationHandler();
+      databaseHandler = new McpDatabaseHandler();
+      
+      // Database initialization happens only on first actual tool call
+      const container = DIContainer.getInstance();
+      await container.initializeDatabase();
+    } catch (error) {
+      // Reset for retry
+      memoryHandler = null;
+      observationHandler = null;
+      relationHandler = null;
+      databaseHandler = null;
+      initializationPromise = null;
+      throw error;
+    }
   };
 
   // Register memory_manage tool (copied from index.ts)
@@ -76,7 +94,7 @@ function createMCPServer(): McpServer {
     },
     async ({ operation, memories, updates, identifiers }) => {
       try {
-        const { memoryHandler } = await getHandlers();
+        const { memoryHandler } = await ensureHandlersInitialized();
         const result = await memoryHandler.handleMemoryManage({ operation, memories, updates, identifiers });
         
         return {

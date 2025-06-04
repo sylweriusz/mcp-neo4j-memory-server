@@ -149,7 +149,6 @@ When adding an observation, ask: "Is this self-contained?"
 **Vector Search Issues:**
 - Check logs for `[VectorSearch] GDS Plugin detected`
 - GDS Plugin requires DozerDB setup (see Neo4j Setup section)
-- In-memory fallback works but is slower for large datasets
 
 **Connection Issues:**
 - Verify Neo4j is running: `docker ps`

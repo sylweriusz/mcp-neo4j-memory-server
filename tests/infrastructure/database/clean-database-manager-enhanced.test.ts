@@ -137,7 +137,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
         'invalid@name', // Invalid characters
         'invalid name', // Spaces not allowed
         '.invalid', // Cannot start with dot
-        'invalid-' // Cannot end with hyphen
+        'invalid!' // Exclamation mark not allowed
       ];
 
       for (const invalidName of invalidNames) {

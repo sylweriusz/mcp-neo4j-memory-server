@@ -22,7 +22,10 @@ describe('IndexManager - Infrastructure Foundation', () => {
 
   describe('Constraint Management', () => {
     it('should ensure all required constraints exist', async () => {
-      (mockSession.run as any).mockResolvedValue({ records: [] });
+      // Mock the database info call to return a valid database name
+      (mockSession.run as any)
+        .mockResolvedValueOnce({ records: [{ get: () => 'test-db' }] })
+        .mockResolvedValue({ records: [] });
 
       await indexManager.ensureConstraints();
 

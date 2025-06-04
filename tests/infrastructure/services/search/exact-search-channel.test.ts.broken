@@ -43,10 +43,11 @@ describe('ExactSearchChannel - Truth-First Exact Matching', () => {
 
       const results = await channel.search('TEST', 10);
 
+      // New implementation uses FULLTEXT calls, not WHERE
       expect(mockSession.run).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE ('),
+        expect.stringContaining('db.index.fulltext.queryNodes'),
         expect.objectContaining({
-          query: 'TEST'  // Actual implementation passes original casing
+          query: 'TEST'
         })
       );
 

@@ -78,13 +78,13 @@ describe('DIContainer - Production Architecture', () => {
       expect(typeof embeddingService.calculateSimilarity).toBe('function');
     });
 
-    it('should provide truth-first search orchestrator', () => {
+    it('should provide search repositories', () => {
       // Act
-      const searchOrchestrator = container.getSearchOrchestrator();
+      const searchUseCase = container.getSearchMemoriesUseCase();
 
       // Assert
-      expect(searchOrchestrator).toBeDefined();
-      expect(typeof searchOrchestrator.search).toBe('function');
+      expect(searchUseCase).toBeDefined();
+      expect(typeof searchUseCase.execute).toBe('function');
     });
 
     it('should provide database manager', () => {
@@ -184,31 +184,28 @@ describe('DIContainer - Production Architecture', () => {
     });
   });
 
-  describe('Truth-First Search Integration', () => {
+  describe('Search Integration', () => {
     it('should provide complete search pipeline', () => {
       // Act
       const searchUseCase = container.getSearchMemoriesUseCase();
-      const searchOrchestrator = container.getSearchOrchestrator();
 
       // Assert - Search pipeline components
       expect(searchUseCase).toBeDefined();
-      expect(searchOrchestrator).toBeDefined();
       expect(typeof searchUseCase.execute).toBe('function');
-      expect(typeof searchOrchestrator.search).toBe('function');
     });
 
     it('should integrate embedding service with search', () => {
       // Act
       const embeddingService = container.getEmbeddingService();
-      const searchOrchestrator = container.getSearchOrchestrator();
+      const searchUseCase = container.getSearchMemoriesUseCase();
 
       // Assert - Service integration
       expect(embeddingService).toBeDefined();
-      expect(searchOrchestrator).toBeDefined();
+      expect(searchUseCase).toBeDefined();
       
       // Both should have compatible interfaces
       expect(typeof embeddingService.calculateEmbedding).toBe('function');
-      expect(typeof searchOrchestrator.search).toBe('function');
+      expect(typeof searchUseCase.execute).toBe('function');
     });
   });
 });

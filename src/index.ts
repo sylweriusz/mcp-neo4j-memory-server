@@ -22,7 +22,7 @@ const server = new McpServer({
   version: "2.3.11"
 });
 
-// Lazy handler factory
+// Lazy handler factory - safe for tool scanning
 let handlerPromise: Promise<any> | null = null;
 const getHandlers = async () => {
   if (!handlerPromise) {
@@ -32,8 +32,12 @@ const getHandlers = async () => {
       const relationHandler = new McpRelationHandler();
       const databaseHandler = new McpDatabaseHandler();
       
-      const container = DIContainer.getInstance();
-      await container.initializeDatabase();
+      // Only initialize database if we have connection config
+      const hasDbConfig = process.env.NEO4J_URI || process.env.NEO4J_USERNAME;
+      if (hasDbConfig) {
+        const container = DIContainer.getInstance();
+        await container.initializeDatabase();
+      }
       
       return { memoryHandler, observationHandler, relationHandler, databaseHandler };
     })();

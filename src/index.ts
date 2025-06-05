@@ -13,59 +13,45 @@ import {
   McpRelationHandler, 
   McpDatabaseHandler 
 } from "./application/mcp-handlers";
+import { DIContainer } from "./container/di-container";
 import { MemoryObject } from "./types";
 
 // Create an MCP server with proper configuration
 const server = new McpServer({
-  name: "neo4j-memory-server",
-  version: "2.3.1"  // GDD v2.3.1: Reality-based index cleanup + comprehensive audit compliance
+  name: "neo4j-memory-server", 
+  version: "2.3.11"
 });
 
-// Ultra-lazy initialization - zero blocking operations during tool registration
-let memoryHandler: McpMemoryHandler | null = null;
-let observationHandler: McpObservationHandler | null = null;
-let relationHandler: McpRelationHandler | null = null;
-let databaseHandler: McpDatabaseHandler | null = null;
-let initializationPromise: Promise<void> | null = null;
-
-const ensureHandlersInitialized = async () => {
-  if (memoryHandler && observationHandler && relationHandler && databaseHandler) {
-    return { memoryHandler, observationHandler, relationHandler, databaseHandler };
+// Lazy handler factory
+let handlerPromise: Promise<any> | null = null;
+const getHandlers = async () => {
+  if (!handlerPromise) {
+    handlerPromise = (async () => {
+      const memoryHandler = new McpMemoryHandler();
+      const observationHandler = new McpObservationHandler();
+      const relationHandler = new McpRelationHandler();
+      const databaseHandler = new McpDatabaseHandler();
+      
+      const container = DIContainer.getInstance();
+      await container.initializeDatabase();
+      
+      return { memoryHandler, observationHandler, relationHandler, databaseHandler };
+    })();
   }
-
-  if (!initializationPromise) {
-    initializationPromise = initializeHandlers();
-  }
-  
-  await initializationPromise;
-  
-  // TypeScript assertion: after initializeHandlers completes, all handlers are guaranteed non-null
-  if (!memoryHandler || !observationHandler || !relationHandler || !databaseHandler) {
-    throw new Error("Handler initialization failed - internal error");
-  }
-  
-  return { memoryHandler, observationHandler, relationHandler, databaseHandler };
+  return handlerPromise;
 };
 
-const initializeHandlers = async () => {
-  try {
-    memoryHandler = new McpMemoryHandler();
-    observationHandler = new McpObservationHandler();
-    relationHandler = new McpRelationHandler();
-    databaseHandler = new McpDatabaseHandler();
-    
-    // Database initialization deferred to first actual operation
-    // No blocking database operations during tool registration
-  } catch (error) {
-    console.error("[MCP Server] Failed to initialize handlers:", error);
-    // Reset for retry
-    memoryHandler = null;
-    observationHandler = null;
-    relationHandler = null;
-    databaseHandler = null;
-    initializationPromise = null;
-    throw error;
-  }
+const handleToolError = (toolName: string, error: any) => {
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        error: `${toolName} failed`,
+        details: String(error)
+      }, null, 2)
+    }],
+    structuredContent: {}
+  };
 };
 
 // Tool 1: Memory Management 
@@ -83,9 +69,10 @@ server.tool(
     })).optional().describe("Memories to update"),
     identifiers: z.array(z.string()).optional().describe("Memory IDs to delete")
   },
-  async ({ operation, memories, updates, identifiers }) => {
+  async (args) => {
+    const { operation, memories, updates, identifiers } = args;
     try {
-      const { memoryHandler } = await ensureHandlersInitialized();
+      const { memoryHandler } = await getHandlers();
       const result = await memoryHandler.handleMemoryManage({ operation, memories, updates, identifiers });
       
       return {
@@ -95,15 +82,7 @@ server.tool(
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { error: "Error managing memories", details: String(error) },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("memory_manage", error);
     }
   }
 );
@@ -115,26 +94,19 @@ server.tool(
   {
     identifiers: z.array(z.string()).describe("Memory IDs to retrieve"),
   },
-  async ({ identifiers }) => {
+  async (args) => {
+    const { identifiers } = args;
     try {
-      const { memoryHandler } = await ensureHandlersInitialized();
+      const { memoryHandler } = await getHandlers();
       const result = await memoryHandler.handleMemoryRetrieve(identifiers);
       return {
         content: [{
-          type: "text", 
+          type: "text",
           text: JSON.stringify(result, null, 2),
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { error: "Error retrieving memories", details: String(error) },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("memory_retrieve", error);
     }
   }
 );
@@ -150,9 +122,10 @@ server.tool(
     memoryTypes: z.array(z.string()).optional().describe("Filter by types"),
     threshold: z.number().optional().describe("Min score 0.0-1.0 (default: 0.1)"),
   },
-  async ({ query, limit = 10, includeGraphContext = true, memoryTypes, threshold = 0.1 }) => {
+  async (args) => {
+    const { query, limit = 10, includeGraphContext = true, memoryTypes, threshold = 0.1 } = args;
     try {
-      const { memoryHandler } = await ensureHandlersInitialized();
+      const { memoryHandler } = await getHandlers();
       const result = await memoryHandler.handleMemorySearch(
         query, 
         limit,
@@ -167,15 +140,7 @@ server.tool(
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { error: "Error searching memories", details: String(error) },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("memory_search", error);
     }
   }
 );
@@ -191,12 +156,10 @@ server.tool(
       contents: z.array(z.string()).describe("Observation texts (add) or IDs (delete)")
     })).describe("Observations to manage")
   },
-  async ({ operation, observations }) => {
+  async (args) => {
+    const { operation, observations } = args;
     try {
-      const { observationHandler } = await ensureHandlersInitialized();
-      if (!observationHandler) {
-        throw new Error("Observation handler not initialized");
-      }
+      const { observationHandler } = await getHandlers();
       const result = await observationHandler.handleObservationManage({ operation, observations });
       return {
         content: [{
@@ -205,18 +168,7 @@ server.tool(
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { 
-              error: "Error managing observations", 
-              details: String(error)
-            },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("observation_manage", error);
     }
   }
 );
@@ -235,12 +187,10 @@ server.tool(
       source: z.enum(['agent', 'user', 'system']).optional().describe("Origin (default: agent)")
     })).describe("Relations to manage")
   },
-  async ({ operation, relations }) => {
+  async (args) => {
+    const { operation, relations } = args;
     try {
-      const { relationHandler } = await ensureHandlersInitialized();
-      if (!relationHandler) {
-        throw new Error("Relation handler not initialized");
-      }
+      const { relationHandler } = await getHandlers();
       const result = await relationHandler.handleRelationManage({ operation, relations });
       return {
         content: [{
@@ -249,15 +199,7 @@ server.tool(
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { error: "Error managing relations", details: String(error) },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("relation_manage", error);
     }
   }
 );
@@ -269,29 +211,19 @@ server.tool(
   {
     databaseName: z.string().describe("Database name to switch to")
   },
-  async ({ databaseName }) => {
+  async (args) => {
+    const { databaseName } = args;
     try {
-      const { databaseHandler } = await ensureHandlersInitialized();
-      if (!databaseHandler) {
-        throw new Error("Database handler not initialized");
-      }
+      const { databaseHandler } = await getHandlers();
       const databaseInfo = await databaseHandler.handleDatabaseSwitch(databaseName);
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(databaseInfo, null, 2),
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(
-            { error: "Failed to switch database", details: String(error) },
-            null, 2
-          ),
-        }],
-      };
+      return handleToolError("database_switch", error);
     }
   }
 );

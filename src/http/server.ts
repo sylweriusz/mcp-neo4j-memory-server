@@ -32,7 +32,7 @@ import { MemoryObject } from "../types";
 function createMCPServer(): McpServer {
   const server = new McpServer({
     name: "neo4j-memory-server",
-    version: "2.3.1"
+    version: "2.3.17"
   });
 
   // Ultra-lazy initialization - zero blocking operations during tool registration

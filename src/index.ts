@@ -19,7 +19,7 @@ import { MemoryObject } from "./types";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server", 
-  version: "2.3.15"
+  version: "2.3.16"
 });
 
 // Lazy handler factory - safe for tool scanning
@@ -244,13 +244,13 @@ const main = async () => {
     process.on("SIGTERM", cleanup);
     
   } catch (error) {
-    console.error("[MCP Server] Failed to start:", error);
+    process.stderr.write(`[MCP Server] Failed to start: ${error}\n`);
     process.exit(1);
   }
 };
 
 main().catch((error) => {
-  console.error(error);
+  process.stderr.write(`${error}\n`);
   process.exit(1);
 });
 

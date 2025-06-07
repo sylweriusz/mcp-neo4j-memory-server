@@ -202,8 +202,16 @@ class SimpleHTTPServer {
     }
 
     if (req.method === 'GET') {
-      // SSE not implemented
-      res.status(501).json({ error: 'SSE not implemented' });
+      // MCP status endpoint for deployment verification
+      res.json({
+        status: 'MCP endpoint ready',
+        protocol: 'streamable-http',
+        endpoints: {
+          health: '/health',
+          mcp: '/mcp'
+        },
+        message: 'Use POST for MCP communication'
+      });
       return;
     }
 
@@ -244,21 +252,28 @@ class SimpleHTTPServer {
   private applyConfigFromQuery(query: any): void {
     if (query.neo4jUri && typeof query.neo4jUri === 'string') {
       process.env.NEO4J_URI = query.neo4jUri;
+      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_URI set from query\n`);
     }
     if (query.neo4jUsername && typeof query.neo4jUsername === 'string') {
       process.env.NEO4J_USERNAME = query.neo4jUsername;
+      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_USERNAME set from query\n`);
     }
     if (query.neo4jPassword && typeof query.neo4jPassword === 'string') {
       process.env.NEO4J_PASSWORD = query.neo4jPassword;
+      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_PASSWORD set from query\n`);
     }
     if (query.neo4jDatabase && typeof query.neo4jDatabase === 'string') {
       process.env.NEO4J_DATABASE = query.neo4jDatabase;
+      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_DATABASE set from query\n`);
     }
   }
 
   public async start(port: number = 3000): Promise<void> {
     return new Promise((resolve) => {
       this.app.listen(port, () => {
+        process.stderr.write(`[MCP HTTP Server] Started on port ${port}\n`);
+        process.stderr.write(`[MCP HTTP Server] Health check: http://localhost:${port}/health\n`);
+        process.stderr.write(`[MCP HTTP Server] MCP endpoint: http://localhost:${port}/mcp\n`);
         resolve();
       });
     });
@@ -267,6 +282,14 @@ class SimpleHTTPServer {
 
 // Main entry point
 const main = async () => {
+  // HTTP mode logging - safe since we're not using stdio
+  process.stderr.write("[MCP HTTP Server] Starting up...\n");
+  process.stderr.write(`[MCP HTTP Server] Environment check:\n`);
+  process.stderr.write(`  NODE_ENV: ${process.env.NODE_ENV || 'not set'}\n`);
+  process.stderr.write(`  PORT: ${process.env.PORT || 'not set'}\n`);
+  process.stderr.write(`  HTTP_PORT: ${process.env.HTTP_PORT || 'not set'}\n`);
+  process.stderr.write(`  NEO4J_URI: ${process.env.NEO4J_URI ? 'set' : 'not set'}\n`);
+  
   const httpServer = new SimpleHTTPServer();
   const port = parseInt(process.env.PORT || process.env.HTTP_PORT || '3000');
   
@@ -278,6 +301,7 @@ const main = async () => {
     process.on("SIGTERM", cleanup);
     
   } catch (error) {
+    process.stderr.write(`[MCP HTTP Server] Failed to start: ${error}\n`);
     process.exit(1);
   }
 };
@@ -287,5 +311,8 @@ export { SimpleHTTPServer };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(() => process.exit(1));
+  main().catch((error) => {
+    process.stderr.write(`[MCP HTTP Server] Startup failed: ${error}\n`);
+    process.exit(1);
+  });
 }

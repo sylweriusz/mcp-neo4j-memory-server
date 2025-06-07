@@ -318,7 +318,7 @@ interface QueryPreprocessing {
 ```
 
 **Classification Rules:**
-- `query === "*" || query === ""` → wildcard retrieval
+- `query === "*"` → wildcard retrieval (empty strings rejected for clarity)
 - `query.match(/^[0-9a-f-]{36}$/i)` → technical_identifier (UUID)
 - `query.match(/^v?\d+\.\d+\.\d+/)` → technical_identifier (version)
 - `query.match(/^[A-Za-z0-9+/=]+$/) && query.length > 8` → technical_identifier (base64-like)

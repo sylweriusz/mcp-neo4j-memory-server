@@ -92,10 +92,10 @@ export class QueryClassifier {
 
   /**
    * Wildcard query detection
-   * GDD: query === "*" || query === ""
+   * GDD: query === "*" (empty strings rejected for clarity)
    */
   private isWildcardQuery(query: string): boolean {
-    return query === '*' || query === '' || query.toLowerCase() === 'all';
+    return query === '*' || query.toLowerCase() === 'all';
   }
 
   /**

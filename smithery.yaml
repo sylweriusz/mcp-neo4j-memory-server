@@ -3,7 +3,7 @@
 name: Neo4j Knowledge Graph Memory
 description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features enhanced semantic search, knowledge graphs, and sophisticated tag extraction for AI memory systems.
 license: MIT
-version: 2.3.14
+version: 2.3.15
 author: sylweriusz
 repository: https://github.com/sylweriusz/mcp-neo4j-memory-server
 
@@ -149,9 +149,9 @@ tools:
     example: |
       {"databaseName":"project-alpha"}
 
-# Start command configuration (existing content)
+# Start command configuration  
 startCommand:
-  type: stdio
+  type: http
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
     type: object
@@ -172,30 +172,6 @@ startCommand:
         description: Neo4j database name to use
         default: neo4j
     description: Configuration for the Neo4j Memory Server.
-  commandFunction:
-    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
-    |-
-    (config) => {
-      // Base command to run the server
-      const command = 'node';
-      const args = ['dist/index.mjs'];
-
-      // Set environment variables from config
-      const env = {};
-      if(config.neo4jUri) {
-        env.NEO4J_URI = config.neo4jUri;
-      }
-      if(config.neo4jUsername) {
-        env.NEO4J_USERNAME = config.neo4jUsername;
-      }
-      if(config.neo4jPassword) {
-        env.NEO4J_PASSWORD = config.neo4jPassword;
-      }
-      if(config.neo4jDatabase) {
-        env.NEO4J_DATABASE = config.neo4jDatabase;
-      }
-      return { command, args, env };
-    }
   exampleConfig:
     neo4jUri: bolt://localhost:7687
     neo4jUsername: neo4j

@@ -185,6 +185,11 @@ class SimpleHTTPServer {
   private async handleMCPRequest(req: express.Request, res: express.Response): Promise<void> {
     const sessionId = req.headers['mcp-session-id'] as string;
     
+    // Extract configuration from query parameters for Smithery compatibility
+    if (req.query) {
+      this.applyConfigFromQuery(req.query);
+    }
+    
     if (req.method === 'DELETE') {
       // Session termination
       if (sessionId && this.transports.has(sessionId)) {
@@ -233,6 +238,24 @@ class SimpleHTTPServer {
     }
   }
 
+  /**
+   * Apply configuration from Smithery query parameters
+   */
+  private applyConfigFromQuery(query: any): void {
+    if (query.neo4jUri && typeof query.neo4jUri === 'string') {
+      process.env.NEO4J_URI = query.neo4jUri;
+    }
+    if (query.neo4jUsername && typeof query.neo4jUsername === 'string') {
+      process.env.NEO4J_USERNAME = query.neo4jUsername;
+    }
+    if (query.neo4jPassword && typeof query.neo4jPassword === 'string') {
+      process.env.NEO4J_PASSWORD = query.neo4jPassword;
+    }
+    if (query.neo4jDatabase && typeof query.neo4jDatabase === 'string') {
+      process.env.NEO4J_DATABASE = query.neo4jDatabase;
+    }
+  }
+
   public async start(port: number = 3000): Promise<void> {
     return new Promise((resolve) => {
       this.app.listen(port, () => {
@@ -245,7 +268,7 @@ class SimpleHTTPServer {
 // Main entry point
 const main = async () => {
   const httpServer = new SimpleHTTPServer();
-  const port = parseInt(process.env.HTTP_PORT || '3000');
+  const port = parseInt(process.env.PORT || process.env.HTTP_PORT || '3000');
   
   try {
     await httpServer.start(port);

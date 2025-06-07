@@ -437,10 +437,10 @@ class SimpleHTTPServer {
 
   public async start(port: number = 3000): Promise<void> {
     return new Promise((resolve) => {
-      this.app.listen(port, () => {
-        process.stderr.write(`[MCP HTTP Server] Started on port ${port}\n`);
-        process.stderr.write(`[MCP HTTP Server] Health check: http://localhost:${port}/health\n`);
-        process.stderr.write(`[MCP HTTP Server] MCP endpoint: http://localhost:${port}/mcp\n`);
+      this.app.listen(port, '0.0.0.0', () => {
+        process.stderr.write(`[MCP HTTP Server] Started on 0.0.0.0:${port}\n`);
+        process.stderr.write(`[MCP HTTP Server] Health check: http://0.0.0.0:${port}/health\n`);
+        process.stderr.write(`[MCP HTTP Server] MCP endpoint: http://0.0.0.0:${port}/mcp\n`);
         resolve();
       });
     });

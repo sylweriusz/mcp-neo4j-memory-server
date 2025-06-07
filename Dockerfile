@@ -13,8 +13,11 @@ RUN npm config set registry https://registry.npmjs.org/ && \
 # Copy source code
 COPY src ./src
 
-# Build the application
-RUN npm run build
+# Build the application (tsup only, skip chmod in Docker)
+RUN npx tsup
+
+# Make files executable manually (Docker way)
+RUN chmod +x dist/index.mjs && chmod +x dist/http/server.mjs
 
 # Clean up dev dependencies after build
 RUN npm prune --production

@@ -351,10 +351,8 @@ class SimpleHTTPServer {
   private async handleMCPRequest(req: express.Request, res: express.Response): Promise<void> {
     const sessionId = req.headers['mcp-session-id'] as string;
     
-    // Extract configuration from query parameters for Smithery compatibility
-    if (req.query) {
-      this.applyConfigFromQuery(req.query);
-    }
+    // ✅ FIXED: Removed problematic query parameter configuration
+    // Configuration now comes from environment variables only
     
     if (req.method === 'DELETE') {
       // Session termination
@@ -412,34 +410,10 @@ class SimpleHTTPServer {
     }
   }
 
-  /**
-   * Apply configuration from Smithery query parameters
-   */
-  private applyConfigFromQuery(query: any): void {
-    if (query.neo4jUri && typeof query.neo4jUri === 'string') {
-      process.env.NEO4J_URI = query.neo4jUri;
-      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_URI set from query\n`);
-    }
-    if (query.neo4jUsername && typeof query.neo4jUsername === 'string') {
-      process.env.NEO4J_USERNAME = query.neo4jUsername;
-      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_USERNAME set from query\n`);
-    }
-    if (query.neo4jPassword && typeof query.neo4jPassword === 'string') {
-      process.env.NEO4J_PASSWORD = query.neo4jPassword;
-      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_PASSWORD set from query\n`);
-    }
-    if (query.neo4jDatabase && typeof query.neo4jDatabase === 'string') {
-      process.env.NEO4J_DATABASE = query.neo4jDatabase;
-      process.stderr.write(`[MCP HTTP Server] Config: NEO4J_DATABASE set from query\n`);
-    }
-  }
-
   public async start(port: number = 3000): Promise<void> {
     return new Promise((resolve) => {
       this.app.listen(port, '0.0.0.0', () => {
-        process.stderr.write(`[MCP HTTP Server] Started on 0.0.0.0:${port}\n`);
-        process.stderr.write(`[MCP HTTP Server] Health check: http://0.0.0.0:${port}/health\n`);
-        process.stderr.write(`[MCP HTTP Server] MCP endpoint: http://0.0.0.0:${port}/mcp\n`);
+        // Silent startup for deployment compatibility
         resolve();
       });
     });
@@ -448,14 +422,7 @@ class SimpleHTTPServer {
 
 // Main entry point
 const main = async () => {
-  // HTTP mode logging - safe since we're not using stdio
-  process.stderr.write("[MCP HTTP Server] Starting up...\n");
-  process.stderr.write(`[MCP HTTP Server] Environment check:\n`);
-  process.stderr.write(`  NODE_ENV: ${process.env.NODE_ENV || 'not set'}\n`);
-  process.stderr.write(`  PORT: ${process.env.PORT || 'not set'}\n`);
-  process.stderr.write(`  HTTP_PORT: ${process.env.HTTP_PORT || 'not set'}\n`);
-  process.stderr.write(`  NEO4J_URI: ${process.env.NEO4J_URI ? 'set' : 'not set'}\n`);
-  
+  // Silent startup for HTTP server (separate from stdio MCP)
   const httpServer = new SimpleHTTPServer();
   const port = parseInt(process.env.PORT || process.env.HTTP_PORT || '3000');
   
@@ -467,7 +434,7 @@ const main = async () => {
     process.on("SIGTERM", cleanup);
     
   } catch (error) {
-    process.stderr.write(`[MCP HTTP Server] Failed to start: ${error}\n`);
+    // Silent error handling for deployment compatibility
     process.exit(1);
   }
 };
@@ -477,8 +444,7 @@ export { SimpleHTTPServer };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    process.stderr.write(`[MCP HTTP Server] Startup failed: ${error}\n`);
+  main().catch(() => {
     process.exit(1);
   });
 }

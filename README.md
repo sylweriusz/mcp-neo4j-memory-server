@@ -1,6 +1,6 @@
 # Neo4j Memory Server
 
-A Model Context Protocol (MCP) server that provides AI assistants with persistent, intelligent memory capabilities using Neo4j's graph database.
+A Model Context Protocol (MCP) server that provides AI assistants with persistent, intelligent memory capabilities using Neo4j's graph database
 
 ## What it does
 

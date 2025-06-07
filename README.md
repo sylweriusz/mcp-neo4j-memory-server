@@ -1,6 +1,32 @@
-# MCP Neo4j Memory Server
+# Neo4j Memory Server
 
-Persistent memory for AI conversations using Neo4j. Store, search, and relate information across sessions.
+A Model Context Protocol (MCP) server that provides AI assistants with persistent, intelligent memory capabilities using Neo4j's graph database.
+
+## What it does
+
+This server enables AI assistants to:
+- **Remember** - Store memories as interconnected knowledge nodes with observations and metadata
+- **Search** - Find relevant memories using semantic vector search or exact matching
+- **Connect** - Create meaningful relationships between memories with strength and source tracking
+- **Organize** - Separate memories by project using different databases
+- **Evolve** - Track how knowledge develops over time with temporal metadata
+
+## Key Features
+
+- 🧠 **Graph-based memory** - Memories are nodes, relationships are edges, observations are content
+- 🔍 **Hybrid search** - Combines vector similarity search with exact text matching
+- 🔗 **Intelligent relationships** - Track relationship strength, source, and creation time
+- 📊 **Multi-database support** - Isolate memories by project or context
+- 🚀 **MCP integration** - Works seamlessly with Claude Desktop and other MCP clients
+- 🏠 **Self-hosted** - Your data stays on your infrastructure
+
+## Technical Highlights
+
+- Built on Neo4j for scalable graph operations
+- Vector embeddings using sentence transformers (384 dimensions)
+- Clean architecture with domain-driven design
+- Zero-fallback philosophy - fails fast for reliable debugging
+- Supports GDS plugin for advanced vector operations
 
 ## Quick Start
 

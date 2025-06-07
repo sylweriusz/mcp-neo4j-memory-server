@@ -24,7 +24,6 @@ import {
   McpDatabaseHandler 
 } from "../application/mcp-handlers";
 import { MemoryObject } from "../types";
-import { MemoryObject } from "../types";
 
 /**
  * Create and configure MCP server with tools

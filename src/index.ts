@@ -19,7 +19,7 @@ import { MemoryObject } from "./types";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server", 
-  version: "2.3.13"
+  version: "2.3.14"
 });
 
 // Lazy handler factory - safe for tool scanning
@@ -53,8 +53,7 @@ const handleToolError = (toolName: string, error: any) => {
         error: `${toolName} failed`,
         details: String(error)
       }, null, 2)
-    }],
-    structuredContent: {}
+    }]
   };
 };
 

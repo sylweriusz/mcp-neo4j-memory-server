@@ -29,12 +29,14 @@ RUN npm ci --omit=dev --ignore-scripts --timeout=300000
 
 # Set environment variables (can be overridden at runtime)
 ENV NODE_ENV=production
+
+# Default Neo4j configuration (will be overridden by Smithery)
 ENV NEO4J_URI=bolt://localhost:7687
 ENV NEO4J_USERNAME=neo4j
 ENV NEO4J_PASSWORD=password
 ENV NEO4J_DATABASE=neo4j
 
-# HTTP Transport environment variables
+# HTTP Transport configuration
 ENV HTTP_PORT=3000
 ENV HTTP_ENDPOINT=/mcp
 ENV ENABLE_SESSIONS=true

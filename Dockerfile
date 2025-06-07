@@ -42,11 +42,11 @@ ENV CORS_ORIGIN=*
 # Add metadata label
 LABEL org.opencontainers.image.title="MCP Memory Graph"
 LABEL org.opencontainers.image.description="Neo4j-based Knowledge Graph with HTTP Transport"
-LABEL org.opencontainers.image.version="2.3.14"
+LABEL org.opencontainers.image.version="2.3.15"
 LABEL org.opencontainers.image.vendor="Sylweriusz"
 
 # Expose HTTP port
 EXPOSE 3000
 
-# Default to HTTP transport for Smithery compatibility
+# Default to HTTP transport for Smithery compatibility  
 ENTRYPOINT ["node", "dist/http/server.mjs"]

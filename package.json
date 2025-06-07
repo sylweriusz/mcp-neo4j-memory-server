@@ -16,7 +16,6 @@
     "build": "tsup && shx chmod +x dist/index.mjs && shx chmod +x dist/http/server.mjs",
     "start": "node dist/index.mjs",
     "start:http": "node dist/http/server.mjs",
-    "prepare": "npm run build",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",

@@ -5,8 +5,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsup.config.ts ./
 
-# Install dependencies 
-RUN npm install --ignore-scripts
+# Install dependencies with increased timeout for @xenova/transformers
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm install --ignore-scripts --timeout=300000
 
 # Copy source files (required before build)
 COPY src ./src
@@ -23,8 +24,8 @@ COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/package-lock.json /app/package-lock.json
 
-# Install only production dependencies
-RUN npm ci --omit=dev --ignore-scripts
+# Install only production dependencies with timeout
+RUN npm ci --omit=dev --ignore-scripts --timeout=300000
 
 # Set environment variables (can be overridden at runtime)
 ENV NODE_ENV=production

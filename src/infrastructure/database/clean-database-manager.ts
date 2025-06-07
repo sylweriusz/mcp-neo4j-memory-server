@@ -18,43 +18,46 @@ export class CleanDatabaseManager {
 
   async switchDatabase(databaseName: string, createIfNotExists: boolean = true): Promise<DatabaseInfo> {
     try {
-      // Validate database name
-      if (!this.isValidDatabaseName(databaseName)) {
-        throw new Error(`Invalid database name: ${databaseName}`);
+      // Normalize database name to Neo4j standards
+      const normalizedName = this.normalizeDatabaseName(databaseName);
+      
+      // Validate normalized name
+      if (!this.isValidDatabaseName(normalizedName)) {
+        throw new Error(`Invalid database name after normalization: ${databaseName} -> ${normalizedName}`);
       }
 
       // Get current database state
       const currentDatabase = this.driverManager.getCurrentDatabase().database;
 
       // GREYPLAN Optimization: If staying in same database, check schema and initialize only if needed
-      if (currentDatabase === databaseName) {
+      if (currentDatabase === normalizedName) {
         await this.ensureSchemaExists();
         return {
           previousDatabase: currentDatabase,
-          currentDatabase: databaseName,
+          currentDatabase: normalizedName,
           created: false
         };
       }
 
       // Check if database exists
-      const exists = await this.databaseExists(databaseName);
+      const exists = await this.databaseExists(normalizedName);
       
       // Create database if needed
       if (!exists && createIfNotExists) {
-        await this.createDatabase(databaseName);
+        await this.createDatabase(normalizedName);
       } else if (!exists) {
-        throw new Error(`Database '${databaseName}' does not exist`);
+        throw new Error(`Database '${normalizedName}' does not exist`);
       }
 
       // Switch database context
-      this.driverManager.switchDatabase(databaseName);
+      this.driverManager.switchDatabase(normalizedName);
 
       // Initialize schema in new database
       await this.initializeDatabase();
 
       return {
         previousDatabase: currentDatabase,
-        currentDatabase: databaseName,
+        currentDatabase: normalizedName,
         created: !exists && createIfNotExists
       };
     } catch (error) {
@@ -124,6 +127,34 @@ export class CleanDatabaseManager {
     } finally {
       await systemSession.close();
     }
+  }
+
+  private normalizeDatabaseName(name: string): string {
+    if (!name || typeof name !== 'string') {
+      throw new Error('Database name must be a non-empty string');
+    }
+    
+    // Convert to lowercase and replace spaces with hyphens
+    let normalized = name.toLowerCase().replace(/\s+/g, '-');
+    
+    // Remove invalid characters (keep only lowercase letters, numbers, dots, underscores, hyphens)
+    normalized = normalized.replace(/[^a-z0-9._-]/g, '');
+    
+    // Ensure first character is alphanumeric
+    if (normalized && !/^[a-z0-9]/.test(normalized)) {
+      normalized = '0' + normalized;
+    }
+    
+    // Trim to max length
+    if (normalized.length > 63) {
+      normalized = normalized.substring(0, 63);
+    }
+    
+    if (!normalized) {
+      throw new Error(`Cannot normalize database name: ${name}`);
+    }
+    
+    return normalized;
   }
 
   private isValidDatabaseName(name: string): boolean {

@@ -42,7 +42,7 @@ ENV CORS_ORIGIN=*
 # Add metadata label
 LABEL org.opencontainers.image.title="MCP Memory Graph"
 LABEL org.opencontainers.image.description="Neo4j-based Knowledge Graph with HTTP Transport"
-LABEL org.opencontainers.image.version="2.3.12"
+LABEL org.opencontainers.image.version="2.3.13"
 LABEL org.opencontainers.image.vendor="Sylweriusz"
 
 # Expose HTTP port

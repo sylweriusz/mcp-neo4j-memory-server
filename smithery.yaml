@@ -153,7 +153,6 @@ tools:
 startCommand:
   type: http
   configSchema:
-    # JSON Schema defining the configuration options for the MCP.
     type: object
     properties:
       neo4jUri:
@@ -171,6 +170,8 @@ startCommand:
         type: string
         description: Neo4j database name to use
         default: neo4j
+    required:
+      - neo4jPassword
     description: Configuration for the Neo4j Memory Server.
   exampleConfig:
     neo4jUri: bolt://localhost:7687

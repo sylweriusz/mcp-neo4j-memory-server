@@ -1,6 +1,6 @@
 {
   "name": "@sylweriusz/mcp-neo4j-memory-server",
-  "version": "2.3.16",
+  "version": "2.3.17",
   "private": false,
   "description": "MCP Memory Server with Neo4j backend",
   "homepage": "https://github.com/sylweriusz/mcp-neo4j-memory-server",

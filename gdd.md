@@ -305,23 +305,20 @@ DELETE m
 #### Query Classification Engine
 ```typescript
 interface QueryIntent {
-  type: 'wildcard' | 'technical_identifier' | 'exact_search' | 'semantic_search';
+  type: 'wildcard' | 'exact_search' | 'semantic_search';
   confidence: number;
   preprocessing: QueryPreprocessing;
 }
 
 interface QueryPreprocessing {
   normalized: string;        // Lowercase normalized query
-  isSpecialPattern: boolean; // UUID, version numbers, base64-like
+  isSpecialPattern: boolean; // Numbers/symbols only
   requiresExactMatch: boolean;
 }
 ```
 
 **Classification Rules:**
 - `query === "*"` → wildcard retrieval (empty strings rejected for clarity)
-- `query.match(/^[0-9a-f-]{36}$/i)` → technical_identifier (UUID)
-- `query.match(/^v?\d+\.\d+\.\d+/)` → technical_identifier (version)
-- `query.match(/^[A-Za-z0-9+/=]+$/) && query.length > 8` → technical_identifier (base64-like)
 - `query.match(/^[^a-zA-Z]*$/)` → exact_search (numbers/symbols only)
 - Otherwise → semantic_search
 
@@ -912,7 +909,6 @@ VECTOR_PRELOAD=true                                                      # Downl
 - **IMPLEMENTATION**: Normalize at query time, preserve at response time
 
 ### 8.14 Query Classification Accuracy (NEW v2.2.0)
-- **REQUIREMENT**: Technical identifiers MUST trigger exact matching bias
 - **REQUIREMENT**: Wildcard queries MUST bypass semantic search entirely
 - **IMPLEMENTATION**: Pre-process all queries through classification engine
 

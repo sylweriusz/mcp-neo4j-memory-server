@@ -84,6 +84,7 @@ export class SimplifiedSearchService {
     threshold: number,
     memoryTypes?: string[]
   ): Promise<SimpleSearchResult[]> {
+    
     // Execute exact search (always)
     const exactCandidates = await this.exactChannel.search(
       queryIntent.preprocessing.normalized,

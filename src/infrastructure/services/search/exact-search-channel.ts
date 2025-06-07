@@ -226,7 +226,7 @@ export class ExactSearchChannel {
    * Sanitize query for Lucene FULLTEXT search to prevent ParseException
    * SAURON EYE FIX: Escape special characters that break Lucene parser
    * 
-   * Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+   * Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
    * These need to be escaped with backslash to be treated as literal characters
    */
   private sanitizeLuceneQuery(query: string): string {
@@ -234,9 +234,9 @@ export class ExactSearchChannel {
       return '';
     }
     
+    // THE FIX: Include / character which is used in BASE85 IDs
     // Escape Lucene special characters that cause ParseException
-    // Note: We escape these to search for them as literal characters
-    return query.replace(/[+\-&|!(){}[\]^"~*?:\\]/g, '\\$&');
+    return query.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&');
   }
 
   private parseMetadata(metadata: string | null): Record<string, any> {

@@ -155,26 +155,10 @@ startCommand:
   configSchema:
     type: object
     properties:
-      neo4jUri:
-        type: string
-        description: URI for Neo4j connection (e.g. bolt://localhost:7687)
-        default: bolt://localhost:7687
-      neo4jUsername:
-        type: string
-        description: Username for Neo4j authentication
-        default: neo4j
       neo4jPassword:
         type: string
         description: Password for Neo4j authentication
-      neo4jDatabase:
-        type: string
-        description: Neo4j database name to use
-        default: neo4j
     required:
       - neo4jPassword
-    description: Configuration for the Neo4j Memory Server.
   exampleConfig:
-    neo4jUri: bolt://localhost:7687
-    neo4jUsername: neo4j
     neo4jPassword: password
-    neo4jDatabase: neo4j

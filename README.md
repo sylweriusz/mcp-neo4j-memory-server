@@ -11,23 +11,31 @@ This server enables AI assistants to:
 - **Organize** - Separate memories by project using different databases
 - **Evolve** - Track how knowledge develops over time with temporal metadata and relationship networks
 
-## Key Features
+## Features
 
-- 🧠 **Graph-based memory** - Memories are nodes, relationships are edges, observations are content
-- 🔍 **Unified search** - Combines vector similarity, exact matching, wildcard queries, and graph traversal
-- 🔗 **Intelligent relationships** - Track relationship strength, source, and creation time
-- 📊 **Multi-database support** - Isolate memories by project or context
-- 🚀 **MCP integration** - Works seamlessly with Claude Desktop and other MCP clients
-- 🏠 **Self-hosted** - Your data stays on your infrastructure
-- ⚡ **Batch operations** - Create multiple connected memories in single operations using localId
+### Core Capabilities
+- 🧠 **Graph Memory** - Memories as nodes, relationships as edges, observations as content
+- 🔍 **Unified Search** - Semantic vectors, exact matching, wildcards, and graph traversal in one tool
+- 🔗 **Smart Relations** - Typed connections with strength, source tracking, and temporal metadata
+- 📊 **Multi-Database** - Isolated project contexts with instant switching
+
+### Advanced Operations  
+- ⚡ **Batch Operations** - Create multiple memories with relationships in single request using localId
+- 🎯 **Context Control** - Response detail levels: minimal (lists), full (complete data), relations-only
+- 📅 **Time Queries** - Filter by relative ("7d", "30d") or absolute dates on any temporal field
+- 🌐 **Graph Traversal** - Navigate networks in any direction with depth control
+
+### Architecture
+- 🚀 **MCP Native** - Seamless integration with Claude Desktop and MCP clients
+- 💾 **Persistent Storage** - Neo4j graph database with GDS plugin for vector operations
+- ⚠️ **Zero-Fallback** - Explicit errors for reliable debugging, no silent failures
 
 ## Technical Highlights
 
 - Built on Neo4j for scalable graph operations
 - Vector embeddings using sentence transformers (384 dimensions)
 - Clean architecture with domain-driven design
-- Zero-fallback philosophy - fails fast for reliable debugging
-- Supports GDS plugin for advanced vector operations
+- Supports GDS plugin for advanced vector operations (necessary)
 - **Unified Architecture** - 4 comprehensive tools for complete memory operations
 
 ## Quick Start
@@ -81,19 +89,6 @@ docker run \
 # RETURN gds.similarity.cosine([1,2,3], [2,3,4]) as similarity
 ```
 
-## Features
-
-- **Persistent Memory**: Information survives conversation restarts
-- **Semantic Search**: Natural language queries using vector embeddings
-  - **GDS Plugin**: Native Neo4j vector operations (necessary)
-- **Knowledge Graphs**: Connect related memories with directional relationships
-- **Multi-Database**: Organize by project/context
-- **Zero-Fallback Architecture**: Explicit errors instead of hidden failures
-- **LocalId System**: Batch operations with cross-references within single request
-- **Graph Traversal**: Navigate relationship networks (outbound/inbound/both)
-- **Context Levels**: Control response detail (minimal/full/relations-only)
-- **Date Filtering**: Relative ("7d", "30d") and absolute date queries
-
 ## Unified Tools
 
 The server provides **4 unified MCP tools** that integrate automatically with Claude:
@@ -121,57 +116,6 @@ The server provides **4 unified MCP tools** that integrate automatically with Cl
 }
 ```
 
-## Advanced Usage Examples
-
-### Batch Memory Creation with LocalId
-```json
-{
-  "memories": [
-    {
-      "name": "Project Alpha",
-      "memoryType": "project", 
-      "localId": "proj1",
-      "observations": ["AI research initiative", "Q1 2025 launch"],
-      "metadata": {"status": "active", "priority": "high"}
-    },
-    {
-      "name": "John Smith",
-      "memoryType": "person",
-      "localId": "person1", 
-      "observations": ["Lead researcher", "PhD in ML"],
-      "metadata": {"role": "lead", "department": "AI"}
-    }
-  ],
-  "relations": [
-    {"from": "person1", "to": "proj1", "type": "LEADS", "strength": 0.9}
-  ]
-}
-```
-
-### Graph Traversal Search
-```json
-{
-  "query": "AI research",
-  "traverseFrom": "dZ$abc123",
-  "traverseDirection": "both", 
-  "maxDepth": 2,
-  "includeContext": "full"
-}
-```
-
-### Date-Based Discovery
-```json
-{
-  "query": "*",
-  "createdAfter": "7d",
-  "memoryTypes": ["project", "meeting"],
-  "includeContext": "minimal"
-}
-```
-
-
-
-
 ## System Prompt
 
 ### The simplest use of the memory tool, the following usually is more than enough.
@@ -186,64 +130,6 @@ The server provides **4 unified MCP tools** that integrate automatically with Cl
 
 ```
 
-### For memory-focused workflows using unified architecture:
-
-```markdown
-# MCP Memory Essentials
-
-## SETUP (do this first!)
-**Switch to project database**: `database_switch({"databaseName": "project-memory-name"})`
-
-## UNIFIED WORKFLOW
-1. **Search first**: `memory_find({"query": "topic"})` before creating
-2. **Create connected memories**: Use `memory_store()` with localId for batch operations
-3. **Modify existing**: Use `memory_modify()` for updates, observations, relations
-
-## CORE RULES (non-negotiable)
-- **Language**: Match user's language, add `{language: 'en'}` to metadata
-- **Structure**: Metadata = overviews, Observations = complete modules
-- **One concept = one memory**: Don't create 5 memories for related things
-- **Batch operations**: Use localId to reference memories within same request
-
-## ADVANCED FEATURES
-- **LocalId**: Reference memories within same request before they get real IDs
-- **Graph traversal**: Follow relationship networks with `traverseFrom` parameter
-- **Context levels**: Use "minimal" for lists, "full" for detailed work
-- **Date filtering**: Find recent memories with `"createdAfter": "7d"`
-
-## OBSERVATION COMPLETENESS TEST
-When adding an observation, ask: "Is this self-contained?"
-- ❌ Bad: "Step 3: Click submit button" (fragment)
-- ✅ Good: "Login process: 1) Enter email 2) Enter password 3) Click submit 4) Handle 2FA if enabled" (complete module)
-
-## OPTIMAL PATTERNS
-
-# Batch Creation
-Create multiple connected memories in ONE operation:
-```
-memory_store({
-  "memories": [
-    {"name": "Meeting", "localId": "meet1", "observations": ["..."]},
-    {"name": "Action Item", "localId": "task1", "observations": ["..."]}
-  ],
-  "relations": [{"from": "meet1", "to": "task1", "type": "GENERATES"}]
-})
-```
-
-# Relationship Navigation
-Explore connected memories:
-```
-memory_find({
-  "query": "project", 
-  "traverseFrom": "existing-memory-id",
-  "traverseDirection": "both"
-})
-```
-
-# Health monitoring
-- Run `memory_find({"query": "*", "limit": 100})` periodically
-- Watch for 1-observation memories or generic names
-```
 
 ## Troubleshooting
 

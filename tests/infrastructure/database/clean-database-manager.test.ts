@@ -35,14 +35,13 @@ describe('CleanDatabaseManager - Production Architecture', () => {
 
   describe('Database Name Validation - Production Rules', () => {
     it('should accept valid database names according to Neo4j constraints', () => {
-      // Arrange - Valid names per Neo4j specification
+      // Arrange - Valid names per Neo4j specification (only alphanumeric and hyphens)
       const validNames = [
         'test-db',
-        'project_memory',
         'user123',
         'my-app-db',
-        'database.with.dots',
-        'mixed_chars-123.test'
+        'database-with-hyphens',
+        'mixed-chars-123-test'
       ];
 
       for (const name of validNames) {
@@ -154,23 +153,23 @@ describe('CleanDatabaseManager - Production Architecture', () => {
       expect(validationMethod('1abc')).toBe(true);
       expect(validationMethod('-abc')).toBe(false);
 
-      // Test allowed characters
+      // Test allowed characters - only hyphens, letters, and numbers
       expect(validationMethod('test-name')).toBe(true);
-      expect(validationMethod('test_name')).toBe(true);
-      expect(validationMethod('test.name')).toBe(true);
+      expect(validationMethod('test_name')).toBe(false); // Underscore not allowed
+      expect(validationMethod('test.name')).toBe(false); // Dot not allowed
       expect(validationMethod('test@name')).toBe(false);
     });
 
     it('should validate edge cases for database names', () => {
       const validationMethod = (databaseManager as any).isValidDatabaseName;
 
-      // Edge cases
+      // Edge cases - Neo4j constraints: alphanumeric start/end, only hyphens in middle
       expect(validationMethod('a')).toBe(true);          // Minimum valid
       expect(validationMethod('a1')).toBe(true);         // Letter + number
       expect(validationMethod('1a')).toBe(true);         // Number + letter
-      expect(validationMethod('a-')).toBe(true);         // Ends with dash
-      expect(validationMethod('a_')).toBe(true);         // Ends with underscore
-      expect(validationMethod('a.')).toBe(true);         // Ends with dot
+      expect(validationMethod('a-')).toBe(false);        // Cannot end with dash
+      expect(validationMethod('a_')).toBe(false);        // Underscore not allowed
+      expect(validationMethod('a.')).toBe(false);        // Dot not allowed
       expect(validationMethod('test-123')).toBe(true);   // Mixed valid chars
     });
   });

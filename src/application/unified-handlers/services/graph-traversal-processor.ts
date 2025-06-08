@@ -159,7 +159,7 @@ export class GraphTraversalProcessor {
     }
     
     const limits = getLimitsConfig();
-    if (options.maxDepth && (options.maxDepth < 1 || options.maxDepth > limits.maxTraversalDepth)) {
+    if (options.maxDepth !== undefined && (options.maxDepth < 1 || options.maxDepth > limits.maxTraversalDepth)) {
       throw new Error(`maxDepth must be between 1 and ${limits.maxTraversalDepth}`);
     }
     

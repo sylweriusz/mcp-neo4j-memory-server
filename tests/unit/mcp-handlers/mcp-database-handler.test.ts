@@ -23,6 +23,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
     };
 
     mockContainer = {
+      initializeDatabase: vi.fn().mockResolvedValue(undefined),
       getDatabaseManager: vi.fn().mockReturnValue(mockDatabaseManager)
     } as any;
 

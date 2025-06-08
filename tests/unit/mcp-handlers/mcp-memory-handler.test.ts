@@ -48,6 +48,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
     // Setup mock container
     mockContainer = {
+      initializeDatabase: vi.fn().mockResolvedValue(undefined),
       getCurrentDatabase: vi.fn().mockReturnValue({ database: 'test-db' }),
       getMemoryRepository: vi.fn().mockReturnValue(mockMemoryRepo),
       getSearchMemoriesUseCase: vi.fn().mockReturnValue(mockSearchUseCase),

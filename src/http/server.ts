@@ -317,12 +317,15 @@ class SimpleHTTPServer {
   private async handleMCPRequest(req: express.Request, res: express.Response): Promise<void> {
     const sessionId = req.headers['mcp-session-id'] as string;
     
-    // ✅ FIXED: Removed problematic query parameter configuration
-    // Configuration now comes from environment variables only
-    
     if (req.method === 'DELETE') {
       // Session termination
       if (sessionId && this.transports.has(sessionId)) {
+        const transport = this.transports.get(sessionId)!;
+        try {
+          await transport.close?.();
+        } catch (error) {
+          // Ignore close errors
+        }
         this.transports.delete(sessionId);
         res.status(204).send();
       } else {
@@ -347,32 +350,69 @@ class SimpleHTTPServer {
 
     if (req.method === 'POST') {
       let transport: StreamableHTTPServerTransport;
-      let newSessionId: string | undefined;
+      let responseSessionId: string | undefined;
 
-      if (sessionId && this.transports.has(sessionId)) {
-        // Use existing session
-        transport = this.transports.get(sessionId)!;
-      } else if (isInitializeRequest(req.body)) {
-        // Create new session
-        newSessionId = randomUUID();
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => newSessionId!,
-        });
-        
-        // Connect to MCP server
-        await this.mcpServer.connect(transport);
-        this.transports.set(newSessionId, transport);
-      } else {
-        res.status(400).json({
+      try {
+        if (sessionId && this.transports.has(sessionId)) {
+          // Use existing session
+          transport = this.transports.get(sessionId)!;
+          responseSessionId = sessionId;
+        } else if (isInitializeRequest(req.body)) {
+          // Create new session for initialize request
+          responseSessionId = randomUUID();
+          transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => responseSessionId!,
+          });
+          
+          // Store transport before connecting
+          this.transports.set(responseSessionId, transport);
+          
+          try {
+            // Connect to MCP server
+            await this.mcpServer.connect(transport);
+          } catch (error) {
+            // Clean up on connection failure
+            this.transports.delete(responseSessionId);
+            console.error('MCP server connection failed:', error);
+            res.status(500).json({
+              jsonrpc: "2.0",
+              error: { 
+                code: -32603, 
+                message: "MCP server connection failed",
+                data: error instanceof Error ? error.message : String(error)
+              },
+              id: (req.body as any)?.id || null
+            });
+            return;
+          }
+        } else {
+          res.status(400).json({
+            jsonrpc: "2.0",
+            error: { code: -32600, message: "Missing session ID" },
+            id: (req.body as any)?.id || null
+          });
+          return;
+        }
+
+        // Set session ID header before handling request
+        if (responseSessionId) {
+          res.setHeader('Mcp-Session-Id', responseSessionId);
+        }
+
+        // Handle the request using transport
+        await transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        console.error('HTTP request handling failed:', error);
+        res.status(500).json({
           jsonrpc: "2.0",
-          error: { code: -32600, message: "Missing session ID" },
-          id: null
+          error: { 
+            code: -32603, 
+            message: "Request handling failed",
+            data: error instanceof Error ? error.message : String(error)
+          },
+          id: (req.body as any)?.id || null
         });
-        return;
       }
-
-      // Handle the request using transport
-      await transport.handleRequest(req, res, req.body);
     }
   }
 

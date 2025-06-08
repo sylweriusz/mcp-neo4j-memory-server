@@ -33,6 +33,12 @@ export class QueryClassifier {
     }
 
     const trimmed = query.trim();
+    
+    // Check for whitespace-only strings (but allow truly empty strings)
+    if (query.length > 0 && trimmed.length === 0) {
+      throw new Error('Query must be a non-empty string');
+    }
+    
     const normalized = trimmed.toLowerCase();
 
     // Wildcard detection

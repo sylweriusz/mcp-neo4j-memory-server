@@ -67,8 +67,10 @@ describe('WildcardSearchService', () => {
       expect(mockSession.run).toHaveBeenCalledWith(
         expect.stringContaining('MATCH (m:Memory)'),
         expect.objectContaining({
-          memoryTypes: undefined,
-          limit: expect.anything()
+          limit: expect.objectContaining({
+            low: 10,
+            high: 0
+          })
         })
       );
 

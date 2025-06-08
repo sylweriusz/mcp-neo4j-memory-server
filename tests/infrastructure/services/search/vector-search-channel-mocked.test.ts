@@ -30,7 +30,7 @@ describe('VectorSearchChannel - Mock Tests', () => {
       mockSession.run.mockRejectedValueOnce(new Error('Unknown function'));
 
       await expect(channel.search('test', 10, 0.5))
-        .rejects.toThrow('SETUP INSTRUCTIONS');
+        .rejects.toThrow('DozerDB');
     });
   });
 

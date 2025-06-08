@@ -30,6 +30,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
     
     // Setup mock container
     mockContainer = {
+      initializeDatabase: vi.fn().mockResolvedValue(undefined),
       getCurrentDatabase: vi.fn().mockReturnValue({ database: 'test-db' }),
       getManageObservationsUseCase: vi.fn().mockReturnValue(mockObservationUseCase)
     };

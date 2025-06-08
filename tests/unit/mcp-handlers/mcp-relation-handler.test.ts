@@ -24,6 +24,7 @@ describe('McpRelationHandler - Relationship Operations', () => {
     };
 
     mockContainer = {
+      initializeDatabase: vi.fn().mockResolvedValue(undefined),
       getManageRelationsUseCase: vi.fn().mockReturnValue(mockRelationUseCase),
       getCurrentDatabase: vi.fn().mockReturnValue({ database: 'test-db' })
     } as any;

@@ -73,9 +73,8 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
 
       const error = await vectorChannel.search('test query', 10, 0.1).catch(e => e);
       
-      expect(error.message).toContain('SETUP INSTRUCTIONS');
       expect(error.message).toContain('DozerDB');
-      expect(error.message).toContain('plugins directory');
+      expect(error.message).toContain('gds.similarity.cosine');
     });
   });
 

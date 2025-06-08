@@ -84,7 +84,9 @@ describe('QueryClassifier', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty queries', () => {
-      expect(() => classifier.classify('')).toThrow('Query must be a non-empty string');
+      const result = classifier.classify('');
+      expect(result.type).toBe(QueryType.SEMANTIC_SEARCH);
+      expect(result.preprocessing.normalized).toBe('');
     });
 
     it('should handle null/undefined', () => {

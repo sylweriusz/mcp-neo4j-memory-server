@@ -29,7 +29,7 @@ export class RelationRepository {
   }
 
   /**
-   * Create enhanced relation with full metadata (GDD v2.3.1+)
+   * Create enhanced relation with full metadata
    */
   async createEnhancedRelation(session: Session, request: EnhancedRelationRequest): Promise<void> {
     await session.run(`
@@ -40,6 +40,28 @@ export class RelationRepository {
         source: $source,
         createdAt: $createdAt
       }]->(to)`, request);
+  }
+
+  /**
+   * Update enhanced relation metadata
+   * Zero-fallback: Relation must exist or operation fails
+   */
+  async updateEnhancedRelation(session: Session, request: EnhancedRelationRequest): Promise<boolean> {
+    const result = await session.run(`
+      MATCH (from:Memory {id: $fromId})-[r:RELATES_TO {relationType: $relationType}]->(to:Memory {id: $toId})
+      SET r.strength = $strength,
+          r.source = $source
+      RETURN count(r) > 0 as updated`,
+      { 
+        fromId: request.fromId,
+        toId: request.toId,
+        relationType: request.relationType,
+        strength: request.strength,
+        source: request.source
+      }
+    );
+    
+    return result.records[0]?.get('updated') || false;
   }
 
   /**

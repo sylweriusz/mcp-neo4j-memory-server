@@ -7,5 +7,6 @@ export {
   getEnvironmentConfig,
   getNeo4jConfig, 
   getVectorConfig,
+  getLimitsConfig,
   type EnvironmentConfig 
 } from './environment';

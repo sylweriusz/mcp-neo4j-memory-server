@@ -20,6 +20,11 @@ export interface EnvironmentConfig {
     idleTimeout: number;
     preload: boolean;
   };
+  limits: {
+    maxMemoriesPerOperation: number;
+    maxRelationsPerOperation: number;
+    maxTraversalDepth: number;
+  };
 }
 
 /**
@@ -59,6 +64,11 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       idleTimeout: parseInt(process.env.VECTOR_IDLE_TIMEOUT || '600000', 10), // 10 minutes
       preload: process.env.VECTOR_PRELOAD !== 'false' // Default true
     },
+    limits: {
+      maxMemoriesPerOperation: parseInt(process.env.MAX_MEMORIES_PER_OP || '50', 10),
+      maxRelationsPerOperation: parseInt(process.env.MAX_RELATIONS_PER_OP || '200', 10),
+      maxTraversalDepth: parseInt(process.env.MAX_TRAVERSAL_DEPTH || '5', 10),
+    },
   };
 }
 
@@ -78,4 +88,13 @@ export function getNeo4jConfig() {
 export function getVectorConfig() {
   const config = getEnvironmentConfig();
   return config.vector;
+}
+
+/**
+ * Get Operation Limits configuration
+ * Used by unified handlers for validation
+ */
+export function getLimitsConfig() {
+  const config = getEnvironmentConfig();
+  return config.limits;
 }

@@ -195,7 +195,7 @@ export class UnifiedMemoryFindHandler {
   ): any {
     const relationshipEntry = {
       id: startingMemoryId,
-      name: "Starting Memory", // Enhanced with actual memory name when available
+      name: startingMemoryId, // Use ID as identifier
       type: "starting_point",
       relation: traversalData.relation,
       distance: traversalData.distance,
@@ -234,8 +234,7 @@ export class UnifiedMemoryFindHandler {
 
     // Filter by memory types if specified
     if (request.memoryTypes && request.memoryTypes.length > 0) {
-      // TODO: Pre-filter IDs by memory type for efficiency
-      // For now, retrieve all and filter in post-processing
+      // Note: Could be optimized with pre-filtering at query level
     }
 
     const result = await this.memoryHandler.handleMemoryRetrieve(idsToRetrieve);
@@ -262,8 +261,7 @@ export class UnifiedMemoryFindHandler {
     const dateFilters = this.extractDateFilters(request);
     if (Object.keys(dateFilters).length > 0) {
       this.dateProcessor.validateDateFilters(dateFilters);
-      // TODO: Apply date filtering to search
-      // For now, delegate to existing search
+      // Note: Date filtering integration pending - delegates to existing search for now
     }
 
     // Delegate to existing search handler

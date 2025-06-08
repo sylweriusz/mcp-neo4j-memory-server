@@ -116,7 +116,7 @@ Integration and E2E tests expect production database connectivity:
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
-NEO4J_DATABASE=mcp-graph-memory
+NEO4J_DATABASE=neo4j
 LOG_LEVEL=error
 
 # Vector model configuration (tests validate model integration)

@@ -137,13 +137,18 @@ export class CleanDatabaseManager {
     // Convert to lowercase and replace spaces with hyphens
     let normalized = name.toLowerCase().replace(/\s+/g, '-');
     
-    // Remove invalid characters (keep only lowercase letters, numbers, dots, underscores, hyphens)
-    normalized = normalized.replace(/[^a-z0-9._-]/g, '');
+    // Remove invalid characters (keep only lowercase letters, numbers, and hyphens)
+    // Neo4j database names: alphanumeric characters and hyphens only
+    normalized = normalized.replace(/[^a-z0-9-]/g, '');
     
-    // Ensure first character is alphanumeric
+    // Ensure first character is alphanumeric (remove leading hyphens)
+    normalized = normalized.replace(/^-+/, '');
     if (normalized && !/^[a-z0-9]/.test(normalized)) {
       normalized = '0' + normalized;
     }
+    
+    // Remove trailing hyphens
+    normalized = normalized.replace(/-+$/, '');
     
     // Trim to max length
     if (normalized.length > 63) {
@@ -168,9 +173,9 @@ export class CleanDatabaseManager {
       return false;
     }
     
-    // Neo4j constraints: lowercase letters, numbers, dots, underscores, hyphens only
-    // Must start with alphanumeric character (Neo4j requirement)
-    return /^[a-z0-9][a-z0-9._-]*$/.test(name);
+    // Neo4j constraints: lowercase letters, numbers, and hyphens only
+    // Must start with alphanumeric character and end with alphanumeric character
+    return /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(name);
   }
 
   async close(): Promise<void> {

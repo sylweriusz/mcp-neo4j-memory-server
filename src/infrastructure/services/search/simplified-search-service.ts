@@ -104,6 +104,7 @@ export class SimplifiedSearchService {
         );
       } catch (error) {
         // Vector search failed - continue with exact results only
+        console.warn(`[SimplifiedSearchService] Vector search failed - falling back to exact search only: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 

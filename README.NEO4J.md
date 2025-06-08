@@ -4,7 +4,9 @@ DozerDB enhances Neo4j Community Edition with additional features like multi-dat
 
 ## Quick Start
 
-Run DozerDB with the command below. Remember to change the default password:
+Follow the installation instructions at https://dozerdb.org/ for the latest setup procedures.
+
+Example DozerDB setup:
 
 ```bash
 docker run \
@@ -14,23 +16,12 @@ docker run \
     -v $HOME/neo4j/plugins:/plugins \
     --env NEO4J_AUTH=neo4j/password \
     --env NEO4J_dbms_security_procedures_unrestricted='gds.*' \
-    graphstack/dozerdb:5.26.3.0
+    graphstack/dozerdb:latest
 ```
 
 ## Install Graph Data Science Plugin
 
-After the container is running, install the OpenGDS plugin:
-
-```bash
-# Download the plugin
-wget https://github.com/DozerDB/graph-data-science/releases/download/2.8.0-alpha01/open-gds-2.8.0-alpha01.jar
-
-# Copy to plugins directory
-docker cp open-gds-2.8.0-alpha01.jar $(docker ps -q --filter ancestor=graphstack/dozerdb):/plugins/
-
-# Restart container
-docker restart $(docker ps -q --filter ancestor=graphstack/dozerdb)
-```
+Refer to https://dozerdb.org/ for current GDS plugin installation instructions, as download links and versions change frequently.
 
 ## Access Neo4j Browser
 
@@ -67,7 +58,7 @@ If you prefer compose, create `docker-compose.yml`:
 version: '3.8'
 services:
   neo4j:
-    image: graphstack/dozerdb:5.26.3.0
+    image: graphstack/dozerdb:latest
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -78,21 +69,12 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
       - neo4j_plugins:/plugins
-      - ./plugins:/plugins
     restart: unless-stopped
 
 volumes:
   neo4j_data:
   neo4j_logs:
   neo4j_plugins:
-```
-
-Download the GDS plugin to `./plugins/` and run:
-
-```bash
-mkdir -p plugins
-wget -O plugins/open-gds.jar https://github.com/DozerDB/graph-data-science/releases/download/2.8.0-alpha01/open-gds-2.8.0-alpha01.jar
-docker-compose up -d
 ```
 
 ## Available Vector Functions
@@ -108,11 +90,11 @@ Once installed, these similarity functions are available:
 
 **Container won't start**: Check if ports 7474/7687 are available, verify Docker has enough memory.
 
-**Plugin not loaded**: Ensure the jar is in `/plugins/` and restart the container.
+**Plugin not loaded**: Check DozerDB documentation for current plugin installation procedures.
 
 **Check logs**: `docker logs $(docker ps -q --filter ancestor=graphstack/dozerdb)`
 
 ## Links
 
 - [DozerDB Website](https://dozerdb.org/)
-- [OpenGDS Releases](https://github.com/DozerDB/graph-data-science/releases)
+- [DozerDB Documentation](https://dozerdb.org/)

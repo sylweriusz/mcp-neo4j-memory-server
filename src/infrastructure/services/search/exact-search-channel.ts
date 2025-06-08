@@ -225,18 +225,46 @@ export class ExactSearchChannel {
   /**
    * Sanitize query for Lucene FULLTEXT search to prevent ParseException
    * SAURON EYE FIX: Escape special characters that break Lucene parser
+   * DOUBLE-ESCAPE PROTECTION: Check for existing escapes before adding new ones
+   * SECURITY FIX: Escape ALL BASE85 special characters to prevent injection
    * 
    * Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
-   * These need to be escaped with backslash to be treated as literal characters
+   * BASE85 additional risky chars: @ . # $ % = ; _ `
+   * Lucene operators: AND, OR, NOT, TO (must be uppercase to be operators)
    */
   private sanitizeLuceneQuery(query: string): string {
     if (!query || typeof query !== 'string') {
       return '';
     }
     
-    // THE FIX: Include / character which is used in BASE85 IDs
-    // Escape Lucene special characters that cause ParseException
-    return query.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&');
+    // First pass: neutralize Lucene operators by converting to lowercase
+    let neutralized = query
+      .replace(/\bAND\b/g, 'and')
+      .replace(/\bOR\b/g, 'or')
+      .replace(/\bNOT\b/g, 'not')
+      .replace(/\bTO\b/g, 'to');
+    
+    // Second pass: Escape all non-alphanumeric except backslash
+    let result = '';
+    
+    for (let i = 0; i < neutralized.length; i++) {
+      const char = neutralized[i];
+      const prevChar = i > 0 ? neutralized[i - 1] : '';
+      
+      // Check if this is alphanumeric, space, or backslash
+      if (/^[0-9A-Za-z\s\\]$/.test(char)) {
+        result += char;
+      } else {
+        // It's a special character - escape if not already escaped
+        if (prevChar !== '\\') {
+          result += '\\' + char;
+        } else {
+          result += char;
+        }
+      }
+    }
+    
+    return result;
   }
 
   private parseMetadata(metadata: string | null): Record<string, any> {

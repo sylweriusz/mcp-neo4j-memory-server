@@ -255,6 +255,8 @@ export class UnifiedMemoryModifyHandler {
       }
     }
     
+    const currentDb = DIContainer.getInstance().getCurrentDatabase();
+    
     return {
       success: true,
       results,
@@ -265,7 +267,7 @@ export class UnifiedMemoryModifyHandler {
         not_found: results.filter(r => r.status === "not_found").length
       },
       _meta: {
-        database: "mcp-graph-memory",
+        database: currentDb.database,
         operation: "update-relations",
         timestamp: new Date().toISOString()
       }

@@ -2,6 +2,7 @@
  * Unified Memory Store Handler
  * Single responsibility: Orchestrate memory creation + relation creation in one operation
  * THE IMPLEMENTOR'S RULE: Build exactly what's specified - memory store with immediate relations
+ * FIXED: Proper transactional safety with single transaction scope
  */
 
 import { McpMemoryHandler, McpRelationHandler } from '../mcp-handlers';
@@ -13,6 +14,7 @@ import {
 import { generateCompactId } from '../../id_generator';
 import { DIContainer } from '../../container/di-container';
 import { getLimitsConfig } from '../../config';
+import { Session } from 'neo4j-driver';
 
 export interface MemoryDefinition {
   name: string;
@@ -84,6 +86,197 @@ export class UnifiedMemoryStoreHandler {
   async handleMemoryStore(request: MemoryStoreRequest): Promise<MemoryStoreResponse> {
     const options = this.applyDefaultOptions(request.options);
     
+    // ZERO-FALLBACK FIX: Use proper transactional scope
+    if (options.transactional) {
+      return this.handleTransactionalStore(request, options);
+    } else {
+      // Non-transactional mode (legacy compatibility)
+      return this.handleNonTransactionalStore(request, options);
+    }
+  }
+
+  /**
+   * TRANSACTIONAL STORE - Single transaction for entire operation
+   * Zero-fallback: All or nothing
+   */
+  private async handleTransactionalStore(
+    request: MemoryStoreRequest, 
+    options: Required<StoreOptions>
+  ): Promise<MemoryStoreResponse> {
+    const container = DIContainer.getInstance();
+    const sessionFactory = container.getSessionFactory();
+    const session = sessionFactory.createSession();
+    const tx = session.beginTransaction();
+    
+    try {
+      // Step 1: Validate request
+      this.validateStoreRequest(request, options);
+      
+      // Step 2: Create memories in transaction
+      const createdMemories = await this.createMemoriesInTransaction(
+        tx, 
+        request.memories
+      );
+      
+      // Step 3: Build localId → realId mapping
+      const localIdMapping = this.localIdResolver.buildMapping(
+        request.memories.map((mem, index) => ({
+          localId: mem.localId,
+          id: createdMemories[index]
+        }))
+      );
+      
+      // Step 4: Create relations in same transaction
+      const connectionResults = await this.createRelationsInTransaction(
+        tx,
+        request.relations || [], 
+        localIdMapping
+      );
+      
+      // Step 5: Commit transaction
+      await tx.commit();
+      
+      // Step 6: Build successful response
+      return this.buildSuccessResponse(
+        createdMemories,
+        connectionResults,
+        localIdMapping,
+        options
+      );
+      
+    } catch (error) {
+      // ZERO-FALLBACK: Rollback everything on any error
+      await tx.rollback();
+      return this.buildErrorResponse(error, options);
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Create memories within transaction
+   */
+  private async createMemoriesInTransaction(
+    tx: any, 
+    memories: MemoryDefinition[]
+  ): Promise<string[]> {
+    const createdIds: string[] = [];
+    
+    for (const memory of memories) {
+      const memoryId = generateCompactId();
+      
+      // Create memory node
+      const createMemoryQuery = `
+        CREATE (m:Memory {
+          id: $id,
+          name: $name,
+          memoryType: $memoryType,
+          metadata: $metadata,
+          createdAt: $createdAt,
+          modifiedAt: $modifiedAt,
+          lastAccessed: $lastAccessed
+        })
+        RETURN m.id as id
+      `;
+      
+      const timestamp = new Date().toISOString();
+      await tx.run(createMemoryQuery, {
+        id: memoryId,
+        name: memory.name,
+        memoryType: memory.memoryType,
+        metadata: JSON.stringify(memory.metadata || {}),
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+        lastAccessed: timestamp
+      });
+      
+      // Create observations
+      for (const observation of memory.observations) {
+        const obsId = generateCompactId();
+        const createObsQuery = `
+          MATCH (m:Memory {id: $memoryId})
+          CREATE (o:Observation {
+            id: $obsId,
+            content: $content,
+            createdAt: $timestamp
+          })
+          CREATE (m)-[:HAS_OBSERVATION]->(o)
+        `;
+        
+        await tx.run(createObsQuery, {
+          memoryId,
+          obsId,
+          content: observation,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      createdIds.push(memoryId);
+    }
+    
+    return createdIds;
+  }
+
+  /**
+   * Create relations within transaction
+   */
+  private async createRelationsInTransaction(
+    tx: any,
+    relations: RelationDefinition[],
+    localIdMapping: Map<string, string>
+  ): Promise<ConnectionResult[]> {
+    const connectionResults: ConnectionResult[] = [];
+    
+    for (const relation of relations) {
+      const fromId = this.resolveId(relation.from, localIdMapping);
+      const toId = this.resolveId(relation.to, localIdMapping);
+      
+      const createRelationQuery = `
+        MATCH (from:Memory {id: $fromId}), (to:Memory {id: $toId})
+        CREATE (from)-[:RELATES_TO {
+          relationType: $relationType,
+          strength: $strength,
+          source: $source,
+          createdAt: $createdAt
+        }]->(to)
+        RETURN from.id as fromId, to.id as toId
+      `;
+      
+      const result = await tx.run(createRelationQuery, {
+        fromId,
+        toId,
+        relationType: relation.type,
+        strength: relation.strength || 0.5,
+        source: relation.source || 'agent',
+        createdAt: new Date().toISOString()
+      });
+      
+      if (result.records.length === 0) {
+        throw new Error(
+          `Failed to create relation: ${fromId} → ${toId} (${relation.type}). ` +
+          `One or both memories do not exist.`
+        );
+      }
+      
+      connectionResults.push({
+        from: fromId,
+        to: toId,
+        type: relation.type,
+        strength: relation.strength || 0.5,
+        source: relation.source || 'agent'
+      });
+    }
+    
+    return connectionResults;
+  }
+
+  /**
+   * NON-TRANSACTIONAL STORE - Legacy mode
+   */
+  private async handleNonTransactionalStore(
+    request: MemoryStoreRequest, 
+    options: Required<StoreOptions>
+  ): Promise<MemoryStoreResponse> {
     try {
       // Step 1: Validate request
       this.validateStoreRequest(request, options);
@@ -114,7 +307,7 @@ export class UnifiedMemoryStoreHandler {
       );
       
     } catch (error) {
-      // Transactional failure - return error response
+      // Non-transactional: return error but don't rollback
       return this.buildErrorResponse(error, options);
     }
   }

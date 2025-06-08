@@ -51,7 +51,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       uri: process.env.NEO4J_URI!,
       username: process.env.NEO4J_USERNAME!,
       password: process.env.NEO4J_PASSWORD!,
-      database: process.env.NEO4J_DATABASE || 'neo4j', // Default to 'neo4j' if not provided
+      database: process.env.NEO4J_DATABASE || process.env.DEFAULT_DATABASE || 'neo4j', // Default to neo4j database
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',

@@ -77,11 +77,8 @@ Neo4j Graph Data Science (GDS) plugin is required but not available.
 
 Error: ${errorMessage}
 
-SETUP INSTRUCTIONS:
-1. Install DozerDB with GDS plugin as documented in README.NEO4J.md
-2. Download: https://github.com/DozerDB/graph-data-science/releases/download/2.8.0-alpha01/open-gds-2.8.0-alpha01.jar
-3. Copy to Neo4j plugins directory and restart
-4. Verify with: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
+Install DozerDB with GDS plugin: https://dozerdb.org/
+Verify installation: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
 
 This system requires GDS for vector similarity operations. No fallback mode available.
       `.trim());

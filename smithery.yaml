@@ -1,9 +1,9 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
 
 name: Neo4j Knowledge Graph Memory
-description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features enhanced semantic search, knowledge graphs, and sophisticated tag extraction for AI memory systems.
+description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features unified tools for memory operations, enhanced semantic search, and sophisticated graph traversal capabilities.
 license: MIT
-version: 2.3.18
+version: 3.0.0
 author: sylweriusz
 repository: https://github.com/sylweriusz/mcp-neo4j-memory-server
 
@@ -12,7 +12,7 @@ documentation:
   overview: |
     This MCP server provides a knowledge graph implementation using Neo4j as the backend storage system.
     It enables LLMs to create, query, and manage entities, relationships, and observations in a knowledge graph.
-    The server is designed to provide persistent memory capabilities across conversations.
+    The server features 4 unified tools that consolidate previous functionality into a cleaner interface.
   
   installation: |
     ### Installing via NPM
@@ -60,34 +60,32 @@ documentation:
   
   
   usage: |
-    Use the following consolidated tools to interact with the memory system:
+    Use the following 4 unified tools to interact with the memory system:
     
-    - `memory_manage`: Create, update, delete memories (consolidated operations)
-    - `memory_retrieve`: Fetch memories by ID with 2-level graph context
-    - `memory_search`: Enhanced unified search with vector similarity, metadata matching, and tag filtering
-    - `observation_manage`: Add or delete observations from memories
-    - `relation_manage`: Create or delete relationships between memories
-    - `database_switch`: Switch to different Neo4j databases
+    - `memory_store`: Create memories with observations and immediate relations in ONE operation
+    - `memory_find`: Unified search and retrieval supporting semantic search, direct ID lookup, wildcard queries, date filtering, and graph traversal
+    - `memory_modify`: Comprehensive modification tool for existing memories - updates, deletions, observation management, and relationships
+    - `database_switch`: Switch to different database context for all subsequent operations
     
-    Enhanced features:
-    - **Vector Search**: 50% weighted semantic similarity using embeddings
-    - **Metadata Search**: 25% weighted exact matching on structured data
-    - **FullText Search**: 15% weighted content search across metadata
-    - **Tag Matching**: 10% weighted keyword-based discovery
-    - **Graph Context**: Automatic 2-level relationship traversal
-    - **Chronological Ordering**: Observations sorted by creation timestamp
+    Key features:
+    - **Local IDs**: Use temporary IDs within `memory_store` to create interconnected memories
+    - **Context Levels**: Control response detail with 'minimal', 'full', or 'relations-only'
+    - **Date Filtering**: Search by creation, modification, or access dates (relative or ISO)
+    - **Graph Traversal**: Navigate relationships up to 5 levels deep in any direction
+    - **Batch Operations**: Process multiple items in single requests with transactional safety
+    - **Zero-fallback Architecture**: Operations succeed completely or fail with clear errors
     
     Example system prompt:
     ```
     You are an AI assistant with persistent memory through an MCP memory server.
 
     MEMORY PROTOCOL:
-    - Begin sessions by searching existing memories with memory_search
-    - Store information in structured categories: identity, preferences, goals, relationships, projects
-    - Use metadata for searchable fields (dates, statuses, types)
+    - Begin sessions by searching existing memories with memory_find
+    - Store related information together using memory_store with local IDs
+    - Use metadata for searchable structured fields
     - Use observations for detailed narrative content
-    - Create relations between connected memories
-    - Update information when it changes rather than duplicating
+    - Create relations to connect memories meaningfully
+    - Update information when it changes using memory_modify
 
     MEMORY TYPES:
     - user: Personal information and preferences
@@ -95,8 +93,14 @@ documentation:
     - conversation: Important discussion points
     - relationship: People and connections
     - knowledge: Facts and learned information
+    - decision: Choices and reasoning
+    - pattern: Recurring themes or behaviors
 
-    Always search before creating to avoid duplicates. Organize information logically using graph structure.
+    BEST PRACTICES:
+    - Search before creating to avoid duplicates
+    - Use local IDs to create complex structures in one operation
+    - Choose appropriate context levels for performance
+    - Leverage graph traversal for discovering connections
     ```
 
 # Build configuration
@@ -108,46 +112,41 @@ build:
 preview:
   defaultCommand: node dist/index.mjs
   examples:
-    - title: Creating Memories
-      description: Create new memories in the knowledge graph
+    - title: Creating Interconnected Memories
+      description: Create multiple memories with relationships using local IDs
       input: |
-        {"operation":"create","memories":[{"name":"John","memoryType":"person","observations":["Software Engineer","Lives in New York","Works at TechCorp"],"metadata":{"role":"developer","location":"NYC"}}]}
+        {"memories":[{"name":"Project Alpha","memoryType":"project","localId":"proj","observations":["Next-gen AI system","Q1 2025 target"],"metadata":{"status":"active","priority":"high"}},{"name":"Sarah Chen","memoryType":"person","localId":"sarah","observations":["Lead architect","10 years experience"],"metadata":{"role":"architect"}}],"relations":[{"from":"sarah","to":"proj","type":"LEADS","strength":0.9}]}
       output: |
-        {"memories":[{"id":"Bm>xyz123","name":"John","memoryType":"person","observations":[{"content":"Software Engineer","createdAt":"2025-05-19T16:45:42.329Z"}],"tags":["software","engineer","techcorp"],"metadata":{"role":"developer","location":"NYC"}}]}
+        {"success":true,"created":["dZ*abc123","dZ*def456"],"connected":[{"from":"dZ*def456","to":"dZ*abc123","type":"LEADS","strength":0.9,"source":"agent"}],"localIdMap":{"proj":"dZ*abc123","sarah":"dZ*def456"}}
     
-    - title: Memory Search
-      description: Search for memories using enhanced unified search
+    - title: Advanced Memory Search
+      description: Search with graph traversal and date filtering
       input: |
-        {"query":"software engineer New York"}
+        {"query":"AI project","traverseFrom":"dZ*abc123","traverseRelations":["LEADS","WORKS_ON"],"maxDepth":2,"createdAfter":"7d","includeContext":"full"}
       output: |
-        {"memories":[{"id":"Bm>xyz123","name":"John","memoryType":"person","observations":[{"content":"Software Engineer","createdAt":"2025-05-19T16:45:42.329Z"}],"related":{"ancestors":[],"descendants":[]},"score":0.85}],"_meta":{"total":1,"queryTime":95}}
+        {"memories":[{"id":"dZ*abc123","name":"Project Alpha","memoryType":"project","observations":[{"content":"Next-gen AI system","createdAt":"2025-06-08T10:00:00Z"}],"related":{"ancestors":[{"id":"dZ*def456","name":"Sarah Chen","type":"person","relation":"LEADS","distance":1}]}}],"_meta":{"total":1,"queryTime":150,"contextLevel":"full"}}
 
 # Tools configuration for display
 tools:
-  - name: memory_manage
-    description: Create, update, or delete memories with consolidated operations
+  - name: memory_store
+    description: Create memories with observations and immediate relations in ONE operation. Use localId for temporary references within the request.
     example: |
-      {"operation":"create","memories":[{"name":"Jane","memoryType":"person","observations":["Data Scientist","Loves hiking"],"metadata":{"department":"AI","hobby":"outdoor"}}]}
+      {"memories":[{"name":"Design Meeting","memoryType":"conversation","localId":"meeting","observations":["Discussed API architecture","Decided on REST"],"metadata":{"date":"2025-06-08","participants":3}}],"relations":[{"from":"meeting","to":"dZ*proj123","type":"RELATES_TO"}]}
     
-  - name: memory_search
-    description: Enhanced unified search with vector similarity, metadata, and tag matching
+  - name: memory_find
+    description: Unified search and retrieval tool supporting semantic search, direct ID lookup, wildcard queries, date-based filtering, and graph traversal
     example: |
-      {"query":"hiking data science","limit":5}
+      {"query":"architecture decisions","limit":10,"createdAfter":"30d","includeContext":"minimal","orderBy":"relevance"}
   
-  - name: observation_manage
-    description: Add or delete observations from existing memories
+  - name: memory_modify
+    description: Comprehensive modification tool for existing memories - updates, deletions, observation management, and relationship operations
     example: |
-      {"operation":"add","observations":[{"memoryId":"Bm>xyz123","contents":["Completed mountain expedition"]}]}
-  
-  - name: relation_manage
-    description: Create or delete relationships between memories
-    example: |
-      {"operation":"create","relations":[{"fromId":"Bm>abc789","toId":"Bm>xyz123","relationType":"COLLABORATES_WITH"}]}
+      {"operation":"add-observations","observations":[{"memoryId":"dZ*abc123","contents":["API design approved","Moving to implementation"]}]}
   
   - name: database_switch
-    description: Switch to a different Neo4j database for complete isolation
+    description: Switches to different database context for all subsequent operations. Global state change affecting all memory operations.
     example: |
-      {"databaseName":"project-alpha"}
+      {"databaseName":"project-alpha","createIfNotExists":true}
 
 # Start command configuration  
 startCommand:
@@ -155,10 +154,25 @@ startCommand:
   configSchema:
     type: object
     properties:
+      neo4jUri:
+        type: string
+        description: Neo4j connection URI (optional - tools can be listed without database)
+        default: ""
+      neo4jUsername:
+        type: string
+        description: Username for Neo4j authentication (optional)
+        default: ""
       neo4jPassword:
         type: string
-        description: Password for Neo4j authentication
-    required:
-      - neo4jPassword
+        description: Password for Neo4j authentication (optional)
+        default: ""
+      neo4jDatabase:
+        type: string
+        description: Neo4j database name (optional)
+        default: "neo4j"
+    required: []  # No required fields - allows listing tools without database
   exampleConfig:
-    neo4jPassword: password
+    neo4jUri: "bolt://localhost:7687"
+    neo4jUsername: "neo4j"
+    neo4jPassword: "password"
+    neo4jDatabase: "neo4j"

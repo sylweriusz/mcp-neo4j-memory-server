@@ -16,6 +16,9 @@ import { ManageRelationsUseCase } from '../application/use-cases/manage-relation
 import { XenovaEmbeddingService } from '../infrastructure/services/embedding-service';
 import { getVectorConfig } from '../config';
 
+// Configuration constants
+const MODEL_INITIALIZATION_DELAY = 100; // ms - delay for non-blocking model loading
+
 export class DIContainer {
   private static instance: DIContainer;
   
@@ -183,7 +186,7 @@ export class DIContainer {
       } catch (error) {
         // Silent failure - vector search will work when model loads on demand
       }
-    }, 100); // 100ms delay - tools appear first, then model loads
+    }, MODEL_INITIALIZATION_DELAY);
   }
 
   async close(): Promise<void> {

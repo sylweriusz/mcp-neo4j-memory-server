@@ -36,7 +36,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Arrange
       const databaseName = 'test-database';
       const expectedResult = {
-        previousDatabase: 'mcp-graph-memory',
+        previousDatabase: 'neo4j',
         currentDatabase: 'test-database',
         created: false
       };
@@ -56,7 +56,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Arrange
       const databaseName = 'new-project-db';
       const expectedResult = {
-        previousDatabase: 'mcp-graph-memory',
+        previousDatabase: 'neo4j',
         currentDatabase: 'new-project-db',
         created: true
       };

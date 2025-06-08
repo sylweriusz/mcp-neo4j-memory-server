@@ -70,7 +70,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
         records: [{ get: vi.fn().mockReturnValue('existing-db') }]
       });
 
-      const result = await databaseManager.switchDatabase('existing-db', false);
+      const result = await databaseManager.switchDatabase('existing-db');
 
       expect(result.currentDatabase).toBe('existing-db');
       expect(result.created).toBe(false);
@@ -80,20 +80,12 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
       );
     });
 
-    it('should detect non-existing database and fail when createIfNotExists is false', async () => {
-      // Mock SHOW DATABASES query returning no results
-      mockSession.run = vi.fn().mockResolvedValue({ records: [] });
-
-      await expect(databaseManager.switchDatabase('non-existing-db', false))
-        .rejects.toThrow("Database 'non-existing-db' does not exist");
-    });
-
     it('should handle SHOW DATABASES query failure gracefully', async () => {
       // Mock SHOW DATABASES query throwing error (older Neo4j versions)
       mockSession.run = vi.fn().mockRejectedValue(new Error('SHOW DATABASES not supported'));
 
       // Should assume database exists and continue
-      const result = await databaseManager.switchDatabase('assumed-existing', true);
+      const result = await databaseManager.switchDatabase('assumed-existing');
 
       expect(result.currentDatabase).toBe('assumed-existing');
     });
@@ -106,7 +98,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
         .mockResolvedValueOnce({ records: [] }) // SHOW DATABASES returns empty
         .mockResolvedValueOnce({}); // CREATE DATABASE succeeds
 
-      const result = await databaseManager.switchDatabase('new-db', true);
+      const result = await databaseManager.switchDatabase('new-db');
 
       expect(result.created).toBe(true);
       expect(result.currentDatabase).toBe('new-db');
@@ -122,7 +114,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
         .mockRejectedValueOnce(new Error('Permission denied')); // CREATE fails
 
       // Should continue despite creation failure
-      const result = await databaseManager.switchDatabase('failed-create', true);
+      const result = await databaseManager.switchDatabase('failed-create');
 
       expect(result.currentDatabase).toBe('failed-create');
       expect(result.created).toBe(true); // Still reports created attempt
@@ -161,7 +153,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
       });
 
       for (const validName of validNames) {
-        await expect(databaseManager.switchDatabase(validName, false))
+        await expect(databaseManager.switchDatabase(validName))
           .resolves.not.toThrow();
       }
     });
@@ -174,7 +166,7 @@ describe('CleanDatabaseManager - Enhanced Coverage', () => {
       });
       mockIndexManager.hasRequiredSchema = vi.fn().mockResolvedValue(true);
 
-      const result = await databaseManager.switchDatabase('current-db', true);
+      const result = await databaseManager.switchDatabase('current-db');
 
       expect(result.previousDatabase).toBe('current-db');
       expect(result.currentDatabase).toBe('current-db');

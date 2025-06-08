@@ -16,7 +16,7 @@ export class CleanDatabaseManager {
     this.sessionFactory = sessionFactory;
   }
 
-  async switchDatabase(databaseName: string, createIfNotExists: boolean = true): Promise<DatabaseInfo> {
+  async switchDatabase(databaseName: string): Promise<DatabaseInfo> {
     try {
       // Normalize database name to Neo4j standards
       const normalizedName = this.normalizeDatabaseName(databaseName);
@@ -42,11 +42,9 @@ export class CleanDatabaseManager {
       // Check if database exists
       const exists = await this.databaseExists(normalizedName);
       
-      // Create database if needed
-      if (!exists && createIfNotExists) {
+      // Always create database if needed
+      if (!exists) {
         await this.createDatabase(normalizedName);
-      } else if (!exists) {
-        throw new Error(`Database '${normalizedName}' does not exist`);
       }
 
       // Switch database context
@@ -58,7 +56,7 @@ export class CleanDatabaseManager {
       return {
         previousDatabase: currentDatabase,
         currentDatabase: normalizedName,
-        created: !exists && createIfNotExists
+        created: !exists
       };
     } catch (error) {
       throw new Error(`Failed to switch to database '${databaseName}': ${error}`);

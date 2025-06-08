@@ -12,8 +12,10 @@ import {
   GraphTraversalProcessor,
   type ContextLevel,
   type DateFilterOptions,
+  type ProcessedDateFilter,
   type GraphTraversalOptions
 } from './services';
+import { WildcardSearchService } from '../../infrastructure/services/search/wildcard-search-service';
 
 export interface MemoryFindRequest {
   query: string | string[];
@@ -259,12 +261,25 @@ export class UnifiedMemoryFindHandler {
 
     // Process date filters if provided
     const dateFilters = this.extractDateFilters(request);
+    let processedDateFilter = { cypher: '', params: {} };
+    
     if (Object.keys(dateFilters).length > 0) {
       this.dateProcessor.validateDateFilters(dateFilters);
-      // Note: Date filtering integration pending - delegates to existing search for now
+      processedDateFilter = this.dateProcessor.processDateFilters(dateFilters);
     }
 
-    // Delegate to existing search handler
+    // Execute wildcard search with date filtering
+    if (request.query === '*') {
+      return await this.executeWildcardSearchWithDateFilters(
+        request.limit || 10,
+        request.includeContext !== "minimal",
+        request.memoryTypes,
+        processedDateFilter
+      );
+    }
+
+    // For non-wildcard queries, delegate to existing search handler
+    // TODO: Implement date filtering for semantic search
     const result = await this.memoryHandler.handleMemorySearch(
       request.query,
       request.limit || 10,
@@ -286,6 +301,62 @@ export class UnifiedMemoryFindHandler {
       modifiedSince: request.modifiedSince,
       accessedSince: request.accessedSince
     };
+  }
+
+  /**
+   * Execute wildcard search with date filters
+   * Direct integration bypassing complex delegation chain
+   */
+  private async executeWildcardSearchWithDateFilters(
+    limit: number,
+    includeGraphContext: boolean,
+    memoryTypes?: string[],
+    dateFilter?: ProcessedDateFilter
+  ): Promise<any> {
+    // Get container and session factory directly
+    const container = (this.memoryHandler as any).container;
+    
+    // Ensure database is initialized through container
+    await container.initializeDatabase();
+    
+    const sessionFactory = container.getSessionFactory();
+    const session = sessionFactory.createSession();
+    
+    try {
+      const wildcardService = new WildcardSearchService(session);
+      
+      const results = await wildcardService.search(
+        limit,
+        includeGraphContext,
+        memoryTypes,
+        dateFilter?.cypher,
+        dateFilter?.params
+      );
+
+      return {
+        memories: results.map((result: any) => ({
+          id: result.id,
+          name: result.name,
+          memoryType: result.type,
+          observations: result.observations,
+          metadata: result.metadata,
+          createdAt: result.createdAt,
+          modifiedAt: result.modifiedAt,
+          lastAccessed: result.lastAccessed,
+          score: result.score,
+          related: result.related
+        })),
+        _meta: {
+          database: container.getCurrentDatabase(),
+          total: results.length,
+          query: "*",
+          queryTime: 0, // Will be updated by actual execution
+          contextLevel: includeGraphContext ? "full" : "minimal"
+        }
+      };
+    } finally {
+      await session.close();
+    }
   }
 
   /**

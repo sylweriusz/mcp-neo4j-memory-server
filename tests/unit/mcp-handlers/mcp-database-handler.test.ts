@@ -48,7 +48,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
 
       // Assert
       expect(mockContainer.getDatabaseManager).toHaveBeenCalled();
-      expect(mockDatabaseManager.switchDatabase).toHaveBeenCalledWith(databaseName, true);
+      expect(mockDatabaseManager.switchDatabase).toHaveBeenCalledWith(databaseName);
       expect(result).toEqual(expectedResult);
     });
 
@@ -67,7 +67,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       const result = await handler.handleDatabaseSwitch(databaseName);
 
       // Assert
-      expect(mockDatabaseManager.switchDatabase).toHaveBeenCalledWith(databaseName, true);
+      expect(mockDatabaseManager.switchDatabase).toHaveBeenCalledWith(databaseName);
       expect(result.created).toBe(true);
       expect(result.currentDatabase).toBe(databaseName);
     });

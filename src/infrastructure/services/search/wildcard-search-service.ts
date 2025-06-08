@@ -12,27 +12,40 @@ export class WildcardSearchService {
   constructor(private session: Session) {}
 
   /**
-   * Execute wildcard search with graph context
-   * GDD v2.3.1: Bypass semantic search for performance
+   * Execute wildcard search with graph context and date filtering
+   * GDD v3.0: Integrated date filtering support
    */
   async search(
     limit: number,
     includeGraphContext: boolean,
-    memoryTypes?: string[]
+    memoryTypes?: string[],
+    dateFilterCypher?: string,
+    dateFilterParams?: Record<string, string>
   ): Promise<EnhancedSearchResult[]> {
-    let whereClause = '';
+    const whereClauses: string[] = [];
+    const queryParams: Record<string, any> = {
+      limit: neo4j.int(limit)
+    };
+
+    // Add memory type filtering
     if (memoryTypes && memoryTypes.length > 0) {
-      whereClause = ' WHERE m.memoryType IN $memoryTypes';
+      whereClauses.push('m.memoryType IN $memoryTypes');
+      queryParams.memoryTypes = memoryTypes;
     }
+
+    // Add date filtering
+    if (dateFilterCypher) {
+      whereClauses.push(dateFilterCypher);
+      Object.assign(queryParams, dateFilterParams);
+    }
+
+    const whereClause = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
 
     const cypher = includeGraphContext 
       ? this.buildWildcardWithContextQuery(whereClause)
       : this.buildBasicWildcardQuery(whereClause);
 
-    const result = await this.session.run(cypher, {
-      memoryTypes,
-      limit: neo4j.int(limit)
-    });
+    const result = await this.session.run(cypher, queryParams);
 
     return result.records.map(record => this.mapRecordToResult(record, includeGraphContext));
   }

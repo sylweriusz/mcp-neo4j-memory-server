@@ -25,9 +25,9 @@ export class UpdateMemoryUseCase {
     // Create updated memory object
     const updatedMemory: Memory = {
       ...existingMemory,
-      ...(request.name && { name: request.name }),
-      ...(request.memoryType && { memoryType: request.memoryType }),
-      ...(request.metadata && { metadata: request.metadata }),
+      ...(request.name !== undefined && { name: request.name }),
+      ...(request.memoryType !== undefined && { memoryType: request.memoryType }),
+      ...(request.metadata !== undefined && { metadata: request.metadata }),
       modifiedAt: new Date()
     };
 

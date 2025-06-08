@@ -23,7 +23,7 @@ export class McpDatabaseHandler {
     await this.ensureDatabaseInitialized();
     try {
       const databaseManager = this.container.getDatabaseManager();
-      return await databaseManager.switchDatabase(databaseName, true);
+      return await databaseManager.switchDatabase(databaseName);
     } catch (error) {
       throw new Error(`Failed to switch database: ${error}`);
     }

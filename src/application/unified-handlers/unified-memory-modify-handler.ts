@@ -7,8 +7,7 @@
 import { 
   McpMemoryHandler, 
   McpObservationHandler, 
-  McpRelationHandler,
-  McpDatabaseHandler 
+  McpRelationHandler
 } from '../mcp-handlers';
 import { DIContainer } from '../../container/di-container';
 import { RelationRepository } from '../../infrastructure/repositories/memory/relation-repository';
@@ -16,8 +15,7 @@ import { RelationRepository } from '../../infrastructure/repositories/memory/rel
 export type ModifyOperation = 
   | "update" | "delete" | "batch-delete"
   | "add-observations" | "delete-observations"
-  | "create-relations" | "update-relations" | "delete-relations"
-  | "switch-database";
+  | "create-relations" | "update-relations" | "delete-relations";
 
 export interface ModifyChanges {
   name?: string;
@@ -75,18 +73,15 @@ export class UnifiedMemoryModifyHandler {
   private memoryHandler: McpMemoryHandler;
   private observationHandler: McpObservationHandler;
   private relationHandler: McpRelationHandler;
-  private databaseHandler: McpDatabaseHandler;
 
   constructor(
     memoryHandler: McpMemoryHandler,
     observationHandler: McpObservationHandler,
-    relationHandler: McpRelationHandler,
-    databaseHandler: McpDatabaseHandler
+    relationHandler: McpRelationHandler
   ) {
     this.memoryHandler = memoryHandler;
     this.observationHandler = observationHandler;
     this.relationHandler = relationHandler;
-    this.databaseHandler = databaseHandler;
   }
 
   async handleMemoryModify(request: MemoryModifyRequest): Promise<MemoryModifyResponse> {
@@ -119,9 +114,6 @@ export class UnifiedMemoryModifyHandler {
           break;
         case 'delete-relations':
           result = await this.handleDeleteRelations(request);
-          break;
-        case 'switch-database':
-          result = await this.handleSwitchDatabase(request);
           break;
         default:
           throw new Error(`Unknown operation: ${request.operation}`);
@@ -289,15 +281,6 @@ export class UnifiedMemoryModifyHandler {
     });
   }
 
-  // Database operations
-  private async handleSwitchDatabase(request: MemoryModifyRequest): Promise<any> {
-    if (!request.target) {
-      throw new Error('target database name is required for switch-database operation');
-    }
-    
-    return await this.databaseHandler.handleDatabaseSwitch(request.target);
-  }
-
   // Response formatting
   private formatResponse(result: any, operation: ModifyOperation): MemoryModifyResponse {
     const currentDb = DIContainer.getInstance().getCurrentDatabase();
@@ -324,7 +307,11 @@ export class UnifiedMemoryModifyHandler {
     
     return {
       success: false,
-      results: [],
+      results: [{
+        id: "error",
+        status: "failed",
+        error: errorMessage
+      }],
       summary: {
         requested: 1,
         succeeded: 0,
@@ -345,7 +332,7 @@ export class UnifiedMemoryModifyHandler {
     }
 
     // Operation-specific validation
-    const needsTarget = ['update', 'delete', 'switch-database'];
+    const needsTarget = ['update', 'delete'];
     const needsTargets = ['batch-delete'];
     const needsObservations = ['add-observations', 'delete-observations'];
     const needsRelations = ['create-relations', 'update-relations', 'delete-relations'];

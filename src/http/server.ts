@@ -36,7 +36,7 @@ import {
 function createMCPServer(): McpServer {
   const server = new McpServer({
     name: "neo4j-memory-server",
-    version: "3.0.0"
+    version: "3.0.1"
   });
 
   // Lazy handler factory - safe for tool scanning
@@ -56,8 +56,7 @@ function createMCPServer(): McpServer {
         const unifiedModifyHandler = new UnifiedMemoryModifyHandler(
           memoryHandler, 
           observationHandler, 
-          relationHandler, 
-          databaseHandler
+          relationHandler
         );
         
         // Only initialize database if we have connection config
@@ -188,8 +187,7 @@ function createMCPServer(): McpServer {
       operation: z.enum([
         "update", "delete", "batch-delete",
         "add-observations", "delete-observations", 
-        "create-relations", "update-relations", "delete-relations",
-        "switch-database"
+        "create-relations", "update-relations", "delete-relations"
       ]).describe("Operation type"),
       target: z.string().optional().describe("Memory ID for single operations"),
       targets: z.array(z.string()).optional().describe("Multiple IDs for batch operations"),
@@ -235,10 +233,9 @@ function createMCPServer(): McpServer {
   // Tool 4: database_switch
   server.tool(
     "database_switch",
-    "Switches to different database context for all subsequent operations. Global state change - all memory operations after this call will execute in the specified database. Use when starting work on a new project or switching between isolated data environments.",
+    "Switches to different database context for all subsequent operations. Global state change - all memory operations after this call will execute in the specified database. Always creates database if it doesn't exist.",
     {
-      databaseName: z.string().describe("Database name to switch to"),
-      createIfNotExists: z.boolean().optional().describe("Create database if it doesn't exist (default: true)")
+      databaseName: z.string().describe("Database name to switch to")
     },
     async (args) => {
       try {

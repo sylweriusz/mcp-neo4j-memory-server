@@ -36,7 +36,7 @@ import {
 function createMCPServer(): McpServer {
   const server = new McpServer({
     name: "neo4j-memory-server",
-    version: "3.0.1"
+    version: "3.0.2"
   });
 
   // Lazy handler factory - safe for tool scanning

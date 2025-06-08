@@ -177,11 +177,12 @@ The server provides **4 unified MCP tools** that integrate automatically with Cl
 ### The simplest use of the memory tool, the following usually is more than enough.
 
 ```
-## Memory tool
-- Store the database memory for this project in: ‘project-database-name’.
-- Use the MCP memory tools to store all information related to this project.
-- Always start a new session by switching to the database of this project 
-and then search the memory for data related to the user prompt.
+## Memory Tool Usage
+- Store all memory for this project in database: 'project-database-name'
+- Use MCP memory tools exclusively for storing project-related information
+- Begin each session by:
+  1. Switching to this project's database
+  2. Searching memory for data relevant to the user's prompt
 
 ```
 

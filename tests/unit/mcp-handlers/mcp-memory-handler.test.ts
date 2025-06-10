@@ -67,7 +67,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
   describe('Memory Management - Create', () => {
     it('should create memories successfully', async () => {
-      const mockMemory = { id: 'test-id', name: 'Test Memory' };
+      const mockMemory = { id: 'Bm$testMemory00001', name: 'Test Memory' };
       mockCreateUseCase.execute.mockResolvedValue(mockMemory);
 
       const request = {
@@ -80,7 +80,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
       expect(mockCreateUseCase.execute).toHaveBeenCalledWith(request.memories[0]);
       expect(result).toMatchObject({
         success: true,
-        results: [{ id: 'test-id', status: 'created' }],
+        results: [{ id: 'Bm$testMemory00001', status: 'created' }],
         summary: {
           requested: 1,
           succeeded: 1,
@@ -126,7 +126,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
       };
 
       await expect(handler.handleMemoryManage(request))
-        .rejects.toThrow('memories array cannot be empty');
+        .rejects.toThrow('Create operation requires non-empty memories array');
     });
 
     it('should reject undefined memories array', async () => {
@@ -135,18 +135,18 @@ describe('McpMemoryHandler - Integration Layer', () => {
       };
 
       await expect(handler.handleMemoryManage(request))
-        .rejects.toThrow('memories array cannot be empty');
+        .rejects.toThrow('Create operation requires non-empty memories array');
     });
   });
 
   describe('Memory Management - Update', () => {
     it('should update memories successfully', async () => {
-      const mockMemory = { id: 'test-id', name: 'Updated Memory' };
+      const mockMemory = { id: 'Bm$testMemory00001', name: 'Updated Memory' };
       mockUpdateUseCase.execute.mockResolvedValue(mockMemory);
 
       const request = {
         operation: 'update' as const,
-        updates: [{ id: 'test-id', name: 'Updated Memory' }]
+        updates: [{ id: 'Bm$testMemory00001', name: 'Updated Memory' }]
       };
 
       const result = await handler.handleMemoryManage(request);
@@ -154,7 +154,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
       expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(request.updates[0]);
       expect(result).toMatchObject({
         success: true,
-        results: [{ id: 'test-id', status: 'updated' }],
+        results: [{ id: 'Bm$testMemory00001', status: 'updated' }],
         summary: {
           requested: 1,
           succeeded: 1,
@@ -168,7 +168,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
       const request = {
         operation: 'update' as const,
-        updates: [{ id: 'test-id', name: 'Updated Memory' }]
+        updates: [{ id: 'Bm$testMemory00001', name: 'Updated Memory' }]
       };
 
       const result = await handler.handleMemoryManage(request);
@@ -187,7 +187,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
       };
 
       await expect(handler.handleMemoryManage(request))
-        .rejects.toThrow('updates array cannot be empty');
+        .rejects.toThrow('Update operation requires non-empty updates array');
     });
   });
 
@@ -283,7 +283,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
   describe('Embedding Stripping', () => {
     it('should strip nameEmbedding from memory objects', async () => {
       const memoryWithEmbedding = {
-        id: 'test-id',
+        id: 'Bm$testMemory00001',
         name: 'Test Memory',
         nameEmbedding: [0.1, 0.2, 0.3, 0.4],
         metadata: { key: 'value' },
@@ -292,10 +292,10 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
       mockMemoryRepo.findByIds.mockResolvedValue([memoryWithEmbedding]);
 
-      const result = await handler.handleMemoryRetrieve(['test-id']);
+      const result = await handler.handleMemoryRetrieve(['Bm$testMemory00001']);
 
       expect(result.memories[0]).toEqual({
-        id: 'test-id',
+        id: 'Bm$testMemory00001',
         name: 'Test Memory',
         metadata: { key: 'value' },
         observations: []
@@ -305,7 +305,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
     it('should handle memories without embeddings', async () => {
       const memoryWithoutEmbedding = {
-        id: 'test-id',
+        id: 'Bm$testMemory00001',
         name: 'Test Memory',
         metadata: { key: 'value' },
         observations: []
@@ -313,10 +313,10 @@ describe('McpMemoryHandler - Integration Layer', () => {
 
       mockMemoryRepo.findByIds.mockResolvedValue([memoryWithoutEmbedding]);
 
-      const result = await handler.handleMemoryRetrieve(['test-id']);
+      const result = await handler.handleMemoryRetrieve(['Bm$testMemory00001']);
 
       expect(result.memories[0]).toEqual({
-        id: 'test-id',
+        id: 'Bm$testMemory00001',
         name: 'Test Memory',
         metadata: { key: 'value' },
         observations: []
@@ -337,7 +337,7 @@ describe('McpMemoryHandler - Integration Layer', () => {
     it('should handle repository errors in retrieval', async () => {
       mockMemoryRepo.findByIds.mockRejectedValue(new Error('Database connection failed'));
 
-      await expect(handler.handleMemoryRetrieve(['test-id']))
+      await expect(handler.handleMemoryRetrieve(['Bm$testMemory00001']))
         .rejects.toThrow('Database connection failed');
     });
 
@@ -349,37 +349,23 @@ describe('McpMemoryHandler - Integration Layer', () => {
     });
 
     it('should handle missing memory names gracefully in create errors', async () => {
-      mockCreateUseCase.execute.mockRejectedValue(new Error('Invalid memory'));
-
       const request = {
         operation: 'create' as const,
         memories: [{ memoryType: 'note' }] // Missing name
       };
 
-      const result = await handler.handleMemoryManage(request);
-
-      expect(result.results[0]).toMatchObject({
-        id: 'unknown',
-        status: 'failed',
-        error: expect.stringContaining('Invalid memory')
-      });
+      await expect(handler.handleMemoryManage(request))
+        .rejects.toThrow('Memory at index 0 must have a non-empty name');
     });
 
     it('should handle missing IDs gracefully in update errors', async () => {
-      mockUpdateUseCase.execute.mockRejectedValue(new Error('Memory not found'));
-
       const request = {
         operation: 'update' as const,
         updates: [{ name: 'Updated Memory' }] // Missing id
       };
 
-      const result = await handler.handleMemoryManage(request);
-
-      expect(result.results[0]).toMatchObject({
-        id: 'unknown',
-        status: 'failed',
-        error: expect.stringContaining('Memory not found')
-      });
+      await expect(handler.handleMemoryManage(request))
+        .rejects.toThrow('Update at index 0 must have a non-empty id');
     });
   });
 });

@@ -64,13 +64,13 @@ describe('DeleteMemoryUseCase', () => {
 
     it('should throw an error when memory does not exist', async () => {
       // Arrange
-      const memoryId = 'Bm>nonexistent12345';
+      const memoryId = 'Bm$nonexistent0001';
       mockMemoryRepository.findById.mockResolvedValue(null);
 
       // Act & Assert
       await expect(deleteMemoryUseCase.execute(memoryId))
         .rejects
-        .toThrow(`Memory with id ${memoryId} not found`);
+        .toThrow(`Memory not found: ${memoryId}`);
     });
 
     it('should propagate repository errors', async () => {
@@ -113,7 +113,7 @@ describe('DeleteMemoryUseCase', () => {
 
     it('should handle partial success when some memories do not exist', async () => {
       // Arrange
-      const memoryIds = ['Bm>existing1234567', 'Bm>nonexistent12345'];
+      const memoryIds = ['Bm>existing1234567', 'Bm$nonexistent0001'];
       const existingMemory = createTestMemory({ id: memoryIds[0] });
 
       mockMemoryRepository.findById
@@ -129,7 +129,7 @@ describe('DeleteMemoryUseCase', () => {
       expect(mockMemoryRepository.delete).toHaveBeenCalledTimes(1);
       expect(result.deleted).toBe(1);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Memory with id Bm>nonexistent12345 not found');
+      expect(result.errors[0]).toContain('Memory not found: Bm$nonexistent0001');
     });
 
     it('should handle partial success when some deletions fail', async () => {

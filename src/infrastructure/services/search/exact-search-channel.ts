@@ -1,8 +1,6 @@
 /**
- * Exact Search Channel - Truth-First Architecture  
  * Single responsibility: Case-insensitive exact matching
- * Performance target: <100ms (GDD v2.3.1)
- * GDD v2.3.1: FIXED to use actual FULLTEXT indexes instead of bypassing them
+ * Performance target: <100ms 
  */
 
 import { Session } from 'neo4j-driver';
@@ -25,7 +23,6 @@ export class ExactSearchChannel {
 
   /**
    * Execute exact match search with PROPER FULLTEXT INDEX USAGE
-   * GDD v2.3.1: Fixed to use actual FULLTEXT indexes instead of bypassing them
    * Performance target: <100ms (now achievable with proper indexing)
    */
   async search(
@@ -80,8 +77,6 @@ export class ExactSearchChannel {
   /**
    * Search using FULLTEXT indexes (metadata and observations)
    * THE FIX: Actually use the indexes we created instead of bypassing them
-   * GDD COMPLIANCE: Memory type filtering at Cypher level
-   * SAURON EYE FIX: Query sanitization to prevent Lucene ParseException
    */
   private async searchFulltext(
     query: string,
@@ -90,7 +85,7 @@ export class ExactSearchChannel {
   ): Promise<ExactMatchCandidate[]> {
     const candidates: ExactMatchCandidate[] = [];
     
-    // SAURON EYE FIX: Sanitize query for Lucene to prevent ParseException
+    // Sanitize query for Lucene to prevent ParseException
     const sanitizedQuery = this.sanitizeLuceneQuery(query);
     
     try {
@@ -198,7 +193,6 @@ export class ExactSearchChannel {
   /**
    * Search for exact name matches (case-insensitive)
    * Uses regular index, not FULLTEXT (better for exact matching)
-   * GDD COMPLIANCE: Memory type filtering at Cypher level
    */
   private async searchExactName(
     normalizedQuery: string,
@@ -242,7 +236,7 @@ export class ExactSearchChannel {
 
   /**
    * Sanitize query for Lucene FULLTEXT search to prevent ParseException
-   * SAURON EYE FIX: Escape special characters that break Lucene parser
+   * Escape special characters that break Lucene parser
    * DOUBLE-ESCAPE PROTECTION: Check for existing escapes before adding new ones
    * SECURITY FIX: Escape ALL BASE85 special characters to prevent injection
    * 

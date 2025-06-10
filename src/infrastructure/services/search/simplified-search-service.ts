@@ -11,7 +11,7 @@ import { ExactSearchChannel } from './exact-search-channel';
 import { VectorSearchChannel, VectorCandidate } from './vector-search-channel';
 import { WildcardSearchService } from './wildcard-search-service';
 import { EnhancedSearchResult } from '../../../types';
-import { MCPValidationError, MCPServiceError, MCPErrorCodes } from '../../errors';
+import { MCPValidationError, MCPErrorCodes } from '../../errors';
 
 export interface SimpleSearchResult extends EnhancedSearchResult {
   score: number;                    // Raw mathematical similarity (0.0-1.0)

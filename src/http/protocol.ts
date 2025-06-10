@@ -104,7 +104,7 @@ export class ProtocolBridge {
   /**
    * Handle CORS preflight requests
    */
-  handleCorsPrelight(req: Request, res: Response): void {
+  handleCorsPrelight(_req: Request, res: Response): void {
     this.setMCPHeaders(res);
     res.status(200).send();
   }

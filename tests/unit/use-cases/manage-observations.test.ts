@@ -64,15 +64,15 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
       mockRepository.findById = vi.fn().mockResolvedValue(null);
 
       const request: ObservationRequest = {
-        memoryId: 'nonexistent',
+        memoryId: 'nonexistent1234567',
         contents: ['Observation for missing memory']
       };
 
       // Execute & Verify
       await expect(useCase.addObservations(request))
-        .rejects.toThrow('Memory with id nonexistent not found');
+        .rejects.toThrow('Memory not found: nonexistent1234567');
       
-      expect(mockRepository.findById).toHaveBeenCalledWith('nonexistent');
+      expect(mockRepository.findById).toHaveBeenCalledWith('nonexistent1234567');
       expect(mockRepository.addObservations).not.toHaveBeenCalled();
     });
 
@@ -126,15 +126,15 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
       mockRepository.findById = vi.fn().mockResolvedValue(null);
 
       const request: ObservationRequest = {
-        memoryId: 'missing-memory',
+        memoryId: 'missing$memory0001',
         contents: ['abcd1234efgh5678AB'] // Valid observation ID
       };
 
       // Execute & Verify
       await expect(useCase.deleteObservations(request))
-        .rejects.toThrow('Memory with id missing-memory not found');
+        .rejects.toThrow('Memory not found: missing$memory0001');
       
-      expect(mockRepository.findById).toHaveBeenCalledWith('missing-memory');
+      expect(mockRepository.findById).toHaveBeenCalledWith('missing$memory0001');
       expect(mockRepository.deleteObservations).not.toHaveBeenCalled();
     });
 
@@ -209,7 +209,7 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
 
       const requests: ObservationRequest[] = [
         { memoryId: 'mem1', contents: ['Success observation'] },
-        { memoryId: 'nonexistent', contents: ['Failed observation'] },
+        { memoryId: 'nonexistent1234567', contents: ['Failed observation'] },
         { memoryId: 'mem3', contents: ['Another success'] }
       ];
 
@@ -219,7 +219,7 @@ describe('ManageObservationsUseCase - The Observation Pipeline', () => {
       // Verify
       expect(result.processed).toBe(2); // Two successful
       expect(result.errors).toHaveLength(1); // One failed
-      expect(result.errors[0]).toContain('Memory with id nonexistent not found');
+      expect(result.errors[0]).toContain('Memory not found: nonexistent1234567');
       expect(mockRepository.addObservations).toHaveBeenCalledTimes(2);
     });
 

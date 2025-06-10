@@ -28,9 +28,9 @@ export interface EnhancedSearchResult {
   type: string;
   observations: Array<{id?: string, content: string, createdAt: string}>;
   metadata: Record<string, any>;
-  createdAt?: string;      // GDD Section 7.3 requirement
-  modifiedAt?: string;     // GDD Section 7.3 requirement  
-  lastAccessed?: string;   // GDD Section 7.3 requirement
+  createdAt?: string;      
+  modifiedAt?: string;     
+  lastAccessed?: string;   
   related?: {
     ancestors?: RelatedMemory[];
     descendants?: RelatedMemory[];

@@ -146,14 +146,14 @@ describe('UpdateMemoryUseCase', () => {
 
     it('should throw an error when memory does not exist', async () => {
       // Arrange
-      const memoryId = 'Bm>nonexistent12345';
+      const memoryId = 'Bm$nonexistent0001';
       mockMemoryRepository.findById.mockResolvedValue(null);
 
       // Act & Assert
       await expect(updateMemoryUseCase.execute({
         id: memoryId,
         name: 'New Name'
-      })).rejects.toThrow(`Memory with id ${memoryId} not found`);
+      })).rejects.toThrow(`Memory not found: ${memoryId}`);
     });
 
     it('should preserve existing properties when not specified in update', async () => {

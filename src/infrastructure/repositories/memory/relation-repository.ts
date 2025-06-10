@@ -58,7 +58,7 @@ export class RelationRepository {
   }
 
   /**
-   * Create enhanced relation with full metadata (GDD v2.3.1+)
+   * Create enhanced relation with full metadata 
    */
   async createEnhancedRelation(session: Session, request: EnhancedRelationRequest): Promise<void> {
     try {
@@ -112,8 +112,7 @@ export class RelationRepository {
   }
 
   /**
-   * Update enhanced relation metadata (GDD v3.0)
-   * Zero-fallback: Relation must exist or operation fails
+   * Update enhanced relation metadata
    */
   async updateEnhancedRelation(session: Session, request: EnhancedRelationRequest): Promise<boolean> {
     try {

@@ -16,13 +16,20 @@ describe('RelationRepository - Production Coverage', () => {
 
   beforeEach(() => {
     mockSession = {
-      run: vi.fn().mockResolvedValue({ records: [] })
+      run: vi.fn().mockResolvedValue({ 
+        records: [{ get: () => ({ id: 'test-record' }) }] // Mock successful result
+      })
     } as any;
     repository = new RelationRepository();
   });
 
   describe('createRelation - Basic Operations', () => {
     test('should create simple relation', async () => {
+      // Mock successful relation creation
+      mockSession.run = vi.fn().mockResolvedValue({ 
+        records: [{ get: () => ({ id: 'from-memory' }) }] 
+      });
+      
       await repository.createRelation(mockSession, 'from-id', 'to-id', 'INFLUENCES');
 
       expect(mockSession.run).toHaveBeenCalledWith(
@@ -38,6 +45,11 @@ describe('RelationRepository - Production Coverage', () => {
 
   describe('createEnhancedRelation - Enhanced Metadata', () => {
     test('should create enhanced relation with full metadata', async () => {
+      // Mock successful enhanced relation creation
+      mockSession.run = vi.fn().mockResolvedValue({ 
+        records: [{ get: () => ({ id: 'from-memory' }) }] 
+      });
+      
       const request: EnhancedRelationRequest = {
         fromId: 'memory-1',
         toId: 'memory-2',
@@ -56,6 +68,11 @@ describe('RelationRepository - Production Coverage', () => {
     });
 
     test('should handle edge case strength values', async () => {
+      // Mock successful enhanced relation creation
+      mockSession.run = vi.fn().mockResolvedValue({ 
+        records: [{ get: () => ({ id: 'from-memory' }) }] 
+      });
+      
       const minStrengthRequest: EnhancedRelationRequest = {
         fromId: 'memory-1',
         toId: 'memory-2',
@@ -76,6 +93,11 @@ describe('RelationRepository - Production Coverage', () => {
 
   describe('deleteRelation - Cleanup Operations', () => {
     test('should delete relation by type', async () => {
+      // Mock successful deletion (relation found and deleted)
+      mockSession.run = vi.fn().mockResolvedValue({ 
+        records: [{ get: () => true }] 
+      });
+      
       await repository.deleteRelation(mockSession, 'from-id', 'to-id', 'INFLUENCES');
 
       expect(mockSession.run).toHaveBeenCalledWith(
@@ -93,8 +115,8 @@ describe('RelationRepository - Production Coverage', () => {
       mockSession.run = vi.fn().mockResolvedValue({ records: [] });
 
       await expect(
-        repository.deleteRelation(mockSession, 'non-existent', 'also-non-existent', 'MISSING')
-      ).resolves.not.toThrow();
+        repository.deleteRelation(mockSession, 'non-existent', 'also$nonexistent01', 'MISSING')
+      ).rejects.toThrow('Relation not found');
     });
   });
 
@@ -138,6 +160,11 @@ describe('RelationRepository - Production Coverage', () => {
 
   describe('Relation Type Validation', () => {
     test('should handle various relation types', async () => {
+      // Mock successful relation creation for all types
+      mockSession.run = vi.fn().mockResolvedValue({ 
+        records: [{ get: () => ({ id: 'from-memory' }) }] 
+      });
+      
       const relationTypes = ['INFLUENCES', 'DEPENDS_ON', 'COMPLEMENTS', 'REQUIRES', 'SUGGESTS'];
 
       for (const relationType of relationTypes) {

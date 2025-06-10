@@ -83,7 +83,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Act & Assert
       await expect(handler.handleDatabaseSwitch(databaseName))
         .rejects
-        .toThrow('Failed to switch database: Error: Invalid database name: contains special characters');
+        .toThrow('Invalid database name: invalid-db-name');
     });
 
     it('should handle network timeout errors', async () => {
@@ -94,7 +94,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Act & Assert
       await expect(handler.handleDatabaseSwitch(databaseName))
         .rejects
-        .toThrow('Failed to switch database: Error: Connection timeout');
+        .toThrow("Database switch to 'timeout-db' failed: Connection timeout");
     });
 
     it('should handle permission errors', async () => {
@@ -105,7 +105,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Act & Assert
       await expect(handler.handleDatabaseSwitch(databaseName))
         .rejects
-        .toThrow('Failed to switch database: Error: Access denied');
+        .toThrow("Database switch to 'restricted-db' failed: Access denied");
     });
 
     it('should handle empty database name', async () => {
@@ -116,7 +116,7 @@ describe('McpDatabaseHandler - Database Operations', () => {
       // Act & Assert
       await expect(handler.handleDatabaseSwitch(databaseName))
         .rejects
-        .toThrow('Failed to switch database: Error: Database name cannot be empty');
+        .toThrow('Database name must be a non-empty string');
     });
   });
 });

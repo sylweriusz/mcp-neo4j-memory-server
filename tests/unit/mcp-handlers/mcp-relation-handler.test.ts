@@ -101,13 +101,13 @@ describe('McpRelationHandler - Relationship Operations', () => {
         operation: 'create' as const,
         relations: [
           {
-            fromId: 'Bm>existing12345678',
-            toId: 'Bm>existing87654321',
+            fromId: 'Bm$existing1234567',
+            toId: 'Bm$existing8765432',
             relationType: 'COMPLEMENTS'
           },
           {
-            fromId: 'Bm>missing123456789',
-            toId: 'Bm>existing87654321',
+            fromId: 'Bm$missing12345678',
+            toId: 'Bm$existing8765432',
             relationType: 'RELATES_TO'
           }
         ]
@@ -158,7 +158,7 @@ describe('McpRelationHandler - Relationship Operations', () => {
       const request = {
         operation: 'delete' as const,
         relations: [{
-          fromId: 'Bm>nonexistent12345',
+          fromId: 'Bm$nonexistent0001',
           toId: 'Bm>test1234567890b',
           relationType: 'INFLUENCES'
         }]
@@ -229,15 +229,9 @@ describe('McpRelationHandler - Relationship Operations', () => {
         relations: []
       };
 
-      // Act
-      const result = await handler.handleRelationManage(request);
-
-      // Assert
-      expect(result.results).toHaveLength(0);
-      expect(result.summary.requested).toBe(0);
-      expect(result.summary.succeeded).toBe(0);
-      expect(result.summary.failed).toBe(0);
-      expect(mockRelationUseCase.createRelation).not.toHaveBeenCalled();
+      // Act & Assert
+      await expect(handler.handleRelationManage(request))
+        .rejects.toThrow('Relations array is required and cannot be empty');
     });
   });
 });

@@ -7,14 +7,11 @@
 
 import { McpMemoryHandler, McpRelationHandler } from '../mcp-handlers';
 import { 
-  LocalIdResolver, 
-  LocalIdMapping,
-  type ContextLevel 
+  LocalIdResolver
 } from './services';
 import { generateCompactId } from '../../id_generator';
 import { DIContainer } from '../../container/di-container';
 import { getLimitsConfig } from '../../config';
-import { Session } from 'neo4j-driver';
 import { 
   MCPValidationError, 
   MCPDatabaseError, 

@@ -1,7 +1,6 @@
 /**
  * Dependency Injection Container - Clean Architecture Complete
  * Single responsibility: Wire up all dependencies with clean database management
- * GDD v2.3.1: Enhanced with session injection for memory operations
  */
 
 import { Neo4jDriverManager, SessionFactory, IndexManager, CleanDatabaseManager } from '../infrastructure/database';
@@ -43,7 +42,7 @@ export class DIContainer {
   private manageObservationsUseCase!: ManageObservationsUseCase;
   private manageRelationsUseCase!: ManageRelationsUseCase;
 
-  // Session tracking for cleanup (GDD v2.0.13)
+  // Session tracking for cleanup
   private activeSessions: any[] = [];
 
   private constructor() {
@@ -190,7 +189,7 @@ export class DIContainer {
   }
 
   async close(): Promise<void> {
-    // Clean shutdown sequence (GDD v2.0.13: Cleanup active sessions)
+    // Clean shutdown sequence
     
     // Close active sessions first
     for (const session of this.activeSessions) {

@@ -13,7 +13,6 @@ export class WildcardSearchService {
 
   /**
    * Execute wildcard search with graph context and date filtering
-   * GDD v3.0: Integrated date filtering support
    */
   async search(
     limit: number,

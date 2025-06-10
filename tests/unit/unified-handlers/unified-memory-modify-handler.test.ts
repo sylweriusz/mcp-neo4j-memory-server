@@ -317,68 +317,45 @@ describe('UnifiedMemoryModifyHandler - Production Coverage', () => {
 
   describe('Validation and Error Handling', () => {
     it('should validate operation parameter', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({ operation: undefined as any });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('operation is required');
+      // Act & Assert
+      await expect(handler.handleMemoryModify({ operation: undefined as any }))
+        .rejects.toThrow('operation is required');
     });
 
     it('should validate target for update operation', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({
+      // Act & Assert
+      await expect(handler.handleMemoryModify({
         operation: 'update',
         changes: { name: 'test' }
-      });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('update operation requires target parameter');
+      })).rejects.toThrow('update operation requires target parameter');
     });
 
     it('should validate targets for batch-delete operation', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({
+      // Act & Assert
+      await expect(handler.handleMemoryModify({
         operation: 'batch-delete'
-      });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('batch-delete operation requires targets array');
+      })).rejects.toThrow('batch-delete operation requires targets array');
     });
 
     it('should validate observations for observation operations', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({
+      // Act & Assert
+      await expect(handler.handleMemoryModify({
         operation: 'add-observations'
-      });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('add-observations operation requires observations array');
+      })).rejects.toThrow('add-observations operation requires observations array');
     });
 
     it('should validate relations for relation operations', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({
+      // Act & Assert
+      await expect(handler.handleMemoryModify({
         operation: 'create-relations'
-      });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('create-relations operation requires relations array');
+      })).rejects.toThrow('create-relations operation requires relations array');
     });
 
     it('should handle unknown operation gracefully', async () => {
-      // Act
-      const result = await handler.handleMemoryModify({
+      // Act & Assert
+      await expect(handler.handleMemoryModify({
         operation: 'invalid-operation' as any
-      });
-
-      // Assert
-      expect(result.success).toBe(false);
-      expect(result.results[0].error).toContain('Unknown operation: invalid-operation');
+      })).rejects.toThrow('Unknown operation: invalid-operation');
     });
   });
 

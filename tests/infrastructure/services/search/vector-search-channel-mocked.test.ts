@@ -30,7 +30,7 @@ describe('VectorSearchChannel - Mock Tests', () => {
       mockSession.run.mockRejectedValueOnce(new Error('Unknown function'));
 
       await expect(channel.search('test', 10, 0.5))
-        .rejects.toThrow('DozerDB');
+        .rejects.toThrow('Neo4j Graph Data Science (GDS) plugin');
     });
   });
 
@@ -47,7 +47,7 @@ describe('VectorSearchChannel - Mock Tests', () => {
       });
 
       await expect(channel.search('test', 10, 0.5))
-        .rejects.toThrow('GDS function returned invalid result');
+        .rejects.toThrow('Neo4j Graph Data Science (GDS) plugin');
     });
   });
 
@@ -115,7 +115,7 @@ describe('VectorSearchChannel - Mock Tests', () => {
       mockSession.run.mockRejectedValue(new Error('Function not found'));
 
       await expect(channel.search('test', 10, 0.5))
-        .rejects.toThrow('No fallback mode available');
+        .rejects.toThrow('Neo4j Graph Data Science (GDS) plugin');
     });
   });
 });

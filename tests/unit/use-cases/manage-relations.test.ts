@@ -88,7 +88,7 @@ describe('ManageRelationsUseCase', () => {
       mockMemoryRepository.findById.mockResolvedValueOnce(null); // Source not found
 
       await expect(relationsUseCase.createRelation(request)).rejects.toThrow(
-        'Source memory with id Bm>nonexistent not found'
+        'Source memory not found: Bm>nonexistent'
       );
 
       expect(mockMemoryRepository.createEnhancedRelation).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('ManageRelationsUseCase', () => {
         .mockResolvedValueOnce(null); // Target not found
 
       await expect(relationsUseCase.createRelation(request)).rejects.toThrow(
-        'Target memory with id Bm>nonexistent not found'
+        'Target memory not found: Bm>nonexistent'
       );
 
       expect(mockMemoryRepository.createEnhancedRelation).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe('ManageRelationsUseCase', () => {
       mockMemoryRepository.findById.mockResolvedValue(null);
 
       await expect(relationsUseCase.deleteRelation(request)).rejects.toThrow(
-        'Source memory with id Bm>nonexistent not found'
+        'Source memory not found: Bm>nonexistent'
       );
 
       expect(mockMemoryRepository.deleteRelation).not.toHaveBeenCalled();

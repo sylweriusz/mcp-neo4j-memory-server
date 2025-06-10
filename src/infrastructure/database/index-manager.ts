@@ -1,7 +1,5 @@
 /**
- * Database Index Management - REALITY-BASED IMPLEMENTATION
- * Single responsibility: Neo4j index and constraint operations
- * GDD v2.3.1: Only indexes that are ACTUALLY USED in queries
+ * Database Index Management
  */
 
 import { Session } from 'neo4j-driver';
@@ -13,8 +11,7 @@ export class IndexManager {
   ) {}
 
   /**
-   * MENTAT DISCIPLINE: Zero-fallback system database validation
-   * The first principle of Mentat programming: Fail fast when the universe is not as expected
+   * Zero-fallback system database validation
    */
   private async validateUserDatabase(): Promise<void> {
     try {
@@ -23,37 +20,26 @@ export class IndexManager {
       const dbName = result.records[0]?.get('name');
       
       if (dbName === 'system') {
-        throw new Error(`MENTAT VIOLATION: Cannot create constraints on system database. Context: ${dbName}`);
+        throw new Error(`Cannot create constraints on system database. Context: ${dbName}`);
       }
       
       // Additional validation for null/undefined database name
       if (!dbName) {
-        throw new Error('MENTAT VIOLATION: Database name could not be determined');
+        throw new Error('Database name could not be determined');
       }
       
     } catch (error) {
-      // If db.info() fails, try fallback detection
-      if (error instanceof Error && error.message.includes('MENTAT VIOLATION')) {
-        throw error; // Re-throw our specific violations
+      // ZERO-FALLBACK: Re-throw all errors to prevent masking real problems
+      if (error instanceof Error) {
+        throw error;
       }
-      
-      // Fallback: Try to detect system database through other means
-      try {
-        await this.session.run('SHOW DATABASES LIMIT 1');
-        // If this succeeds, we're likely on system database (only system can SHOW DATABASES)
-        throw new Error('MENTAT VIOLATION: Detected system database context via SHOW DATABASES capability');
-      } catch (showDbError) {
-        // If SHOW DATABASES fails, we're likely on a user database (which is correct)
-        // Continue with constraint creation
-        return;
-      }
+      // For unknown error types, wrap and throw
+      throw new Error(`Database validation failed: ${String(error)}`);
     }
   }
 
   /**
    * Ensure all required constraints exist
-   * GDD v2.3.1: Added critical Observation.id constraint
-   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureConstraints(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
@@ -78,8 +64,6 @@ export class IndexManager {
 
   /**
    * Ensure ACTIVE indexes exist (verified query usage)
-   * GDD v2.3.1: Removed dead indexes, added missing critical ones
-   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureActiveIndexes(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
@@ -93,7 +77,7 @@ export class IndexManager {
       // Pattern: ORDER BY m.createdAt DESC
       'CREATE INDEX memory_created_idx IF NOT EXISTS FOR (m:Memory) ON (m.createdAt)',
       
-      // NEW: Enhanced relationship metadata support (GDD v2.3.1)
+      // NEW: Enhanced relationship metadata support
       // Pattern: WHERE r.strength >= $threshold
       'CREATE INDEX relation_strength_idx IF NOT EXISTS FOR ()-[r:RELATES_TO]-() ON (r.strength)',
       // Pattern: WHERE r.source = "agent"
@@ -114,8 +98,6 @@ export class IndexManager {
 
   /**
    * Ensure fulltext indexes exist
-   * GDD v2.3.1: Maintained for proper FULLTEXT usage
-   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async ensureFulltextIndexes(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
@@ -139,9 +121,6 @@ export class IndexManager {
 
   /**
    * Ensure vector indexes exist (GDS Plugin)
-   * GDD v2.3.1: VERIFIED USAGE in vector-search-channel.ts
-   * MENTAT DISCIPLINE: Zero-fallback system database detection
-   * FIXED: Use DIContainer singleton for dimension consistency
    */
   async ensureVectorIndexes(): Promise<void> {
     // ZERO-FALLBACK: Fail fast if wrong database context
@@ -189,7 +168,6 @@ export class IndexManager {
 
   /**
    * Remove dead indexes from legacy implementations
-   * GDD v2.3.1: Cleanup unused indexes to improve performance
    */
   async removeDeadIndexes(): Promise<void> {
     const deadIndexes = [
@@ -210,7 +188,6 @@ export class IndexManager {
 
   /**
    * Check if required schema elements exist
-   * GDD v2.3.1: Updated to check for reality-based schema
    */
   async hasRequiredSchema(): Promise<boolean> {
     try {
@@ -259,8 +236,6 @@ export class IndexManager {
 
   /**
    * Initialize all database schema elements
-   * GDD v2.3.1: Reality-based initialization with dead index cleanup
-   * MENTAT DISCIPLINE: Zero-fallback system database detection
    */
   async initializeSchema(): Promise<void> {
     // ZERO-FALLBACK: Validate database context before any schema operations

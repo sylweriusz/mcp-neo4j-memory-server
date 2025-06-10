@@ -53,7 +53,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
         operation: 'add' as const,
         observations: [
           {
-            memoryId: 'mem123',
+            memoryId: 'daGt=#}#.zo4Ipt5yI',
             contents: ['First observation', 'Second observation']
           }
         ]
@@ -66,7 +66,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       expect(result.success).toBe(true);
       expect(result.results).toHaveLength(1);
       expect(result.results[0]).toMatchObject({
-        memoryId: 'mem123',
+        memoryId: 'daGt=#}#.zo4Ipt5yI',
         status: 'success',
         observations: {
           requested: 2,
@@ -90,9 +90,9 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       const request = {
         operation: 'add' as const,
         observations: [
-          { memoryId: 'mem1', contents: ['Observation 1'] },
-          { memoryId: 'mem2', contents: ['Observation 2', 'Observation 3'] },
-          { memoryId: 'mem3', contents: ['Observation 4'] }
+          { memoryId: 'daGt=#}#.zo4Ipt5yI', contents: ['Observation 1'] },
+          { memoryId: 'daGt=#}#.zo4Ipt5yJ', contents: ['Observation 2', 'Observation 3'] },
+          { memoryId: 'daGt=#}#.zo4Ipt5yK', contents: ['Observation 4'] }
         ]
       };
 
@@ -117,7 +117,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
         operation: 'add' as const,
         observations: [
           {
-            memoryId: 'nonexistent',
+            memoryId: 'daGt=#}#.zo4Ipt5yL',
             contents: ['Failed observation']
           }
         ]
@@ -130,7 +130,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       expect(result.success).toBe(true); // Handler doesn't fail, just reports errors
       expect(result.results).toHaveLength(1);
       expect(result.results[0]).toMatchObject({
-        memoryId: 'nonexistent',
+        memoryId: 'daGt=#}#.zo4Ipt5yL',
         status: 'failed',
         error: 'Memory not found'
       });
@@ -152,8 +152,8 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
         operation: 'delete' as const,
         observations: [
           {
-            memoryId: 'mem456',
-            contents: ['obs-id-1', 'obs-id-2'] // Observation IDs for deletion
+            memoryId: 'daGt=#}#.zo4Ipt5yM',
+            contents: ['daGt=#}#.zo4Ipt5yN', 'daGt=#}#.zo4Ipt5yO'] // Observation IDs for deletion
           }
         ]
       };
@@ -164,7 +164,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       // Verify
       expect(result.success).toBe(true);
       expect(result.results[0]).toMatchObject({
-        memoryId: 'mem456',
+        memoryId: 'daGt=#}#.zo4Ipt5yM',
         status: 'success',
         observations: {
           requested: 2,
@@ -173,7 +173,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       });
       expect(result._meta.operation).toBe('delete');
       expect(mockObservationUseCase.executeMany).toHaveBeenCalledWith('delete', [
-        { memoryId: 'mem456', contents: ['obs-id-1', 'obs-id-2'] }
+        { memoryId: 'daGt=#}#.zo4Ipt5yM', contents: ['daGt=#}#.zo4Ipt5yN', 'daGt=#}#.zo4Ipt5yO'] }
       ]);
     });
 
@@ -187,7 +187,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
         operation: 'delete' as const,
         observations: [
           {
-            memoryId: 'mem789',
+            memoryId: 'daGt=#}#.zo4Ipt5yN',
             contents: ['nonexistent-obs-id']
           }
         ]
@@ -198,7 +198,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
 
       // Verify
       expect(result.results[0]).toMatchObject({
-        memoryId: 'mem789',
+        memoryId: 'daGt=#}#.zo4Ipt5yN',
         status: 'failed',
         error: 'Observation not found'
       });
@@ -212,16 +212,9 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
         observations: []
       };
 
-      // Execute
-      const result = await handler.handleObservationManage(request);
-
-      // Verify
-      expect(result.success).toBe(true);
-      expect(result.results).toHaveLength(0);
-      expect(result.summary.memories_processed).toBe(0);
-      expect(result.summary.memories_failed).toBe(0);
-      expect(result.summary.observations_processed).toBe(0);
-      expect(mockObservationUseCase.executeMany).not.toHaveBeenCalled();
+      // Execute & Verify
+      await expect(handler.handleObservationManage(request))
+        .rejects.toThrow('Observations array is required and cannot be empty');
     });
 
     it('should include proper metadata in responses', async () => {
@@ -232,7 +225,7 @@ describe('McpObservationHandler - The MCP Observation Interface', () => {
       const request = {
         operation: 'delete' as const,
         observations: [
-          { memoryId: 'mem123', contents: ['obs1'] }
+          { memoryId: 'daGt=#}#.zo4Ipt5yO', contents: ['daGt=#}#.zo4Ipt5yP'] }
         ]
       };
 

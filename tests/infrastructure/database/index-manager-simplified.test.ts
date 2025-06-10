@@ -37,7 +37,7 @@ describe('IndexManager - Simplified Tests', () => {
       });
 
       await expect(indexManager.ensureConstraints())
-        .rejects.toThrow('MENTAT VIOLATION: Database name could not be determined');
+        .rejects.toThrow('Database name could not be determined');
     });
 
     it('should detect system database and fail', async () => {
@@ -47,7 +47,7 @@ describe('IndexManager - Simplified Tests', () => {
       });
 
       await expect(indexManager.ensureConstraints())
-        .rejects.toThrow('MENTAT VIOLATION: Cannot create constraints on system database');
+        .rejects.toThrow('Cannot create constraints on system database');
     });
   });
 

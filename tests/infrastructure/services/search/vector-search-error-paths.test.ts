@@ -30,7 +30,7 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
 
       await expect(
         vectorChannel.search('test query', 10, 0.1)
-      ).rejects.toThrow(/GDS function returned invalid result/);
+      ).rejects.toThrow(/Neo4j Graph Data Science.*plugin/);
     });
 
     test('should fail fast when GDS verification returns undefined', async () => {
@@ -41,7 +41,7 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
 
       await expect(
         vectorChannel.search('test query', 10, 0.1)
-      ).rejects.toThrow(/GDS function returned invalid result/);
+      ).rejects.toThrow(/Neo4j Graph Data Science.*plugin/);
     });
 
     test('should fail fast when GDS verification has no records', async () => {
@@ -52,7 +52,7 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
 
       await expect(
         vectorChannel.search('test query', 10, 0.1)
-      ).rejects.toThrow(/GDS function returned invalid result/);
+      ).rejects.toThrow(/Neo4j Graph Data Science.*plugin/);
     });
 
     test('should provide clear setup instructions when GDS is unavailable', async () => {
@@ -73,8 +73,8 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
 
       const error = await vectorChannel.search('test query', 10, 0.1).catch(e => e);
       
-      expect(error.message).toContain('DozerDB');
-      expect(error.message).toContain('gds.similarity.cosine');
+      expect(error.message).toContain('Neo4j Graph Data Science (GDS) plugin');
+      expect(error.message).toContain('not installed');
     });
   });
 
@@ -97,7 +97,7 @@ describe('VectorSearchChannel - Error Path Coverage', () => {
       const error = await vectorChannel.search('test query', 10, 0.1).catch(e => e);
       
       expect(error.message).toContain('GDS vector search failed');
-      expect(error.message).toContain('verify GDS installation');
+      expect(error.message).toContain('disabled or removed');
     });
 
     test('should handle non-GDS query errors normally', async () => {

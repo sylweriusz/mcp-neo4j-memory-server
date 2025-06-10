@@ -4,8 +4,6 @@
  * THE SINGLE SOURCE OF TRUTH for Memory types
  */
 
-import { MCPValidationError, MCPErrorCodes } from '../../infrastructure/errors';
-
 export interface MemoryObservation {
   id?: string;
   content: string;

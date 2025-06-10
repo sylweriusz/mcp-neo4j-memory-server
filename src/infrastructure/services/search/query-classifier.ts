@@ -2,7 +2,6 @@
  * Query Classifier - Truth-First Search Architecture
  * Single responsibility: Query intent detection and preprocessing
  * 
- * THE IMPLEMENTOR'S RULE: Build exactly what's specified in GDD v2.3.1
  */
 
 import { MCPValidationError, MCPErrorCodes } from '../../errors';
@@ -24,8 +23,7 @@ export interface QueryIntent {
 }
 
 /**
- * Query classification according to GDD v2.3.1 specifications
- * Zero fallback architecture - explicit classification for all patterns
+ * Query classification
  */
 export class QueryClassifier {
   
@@ -83,7 +81,6 @@ export class QueryClassifier {
 
   /**
    * Wildcard query detection
-   * GDD: query === "*" (empty strings rejected for clarity)
    */
   private isWildcardQuery(query: string): boolean {
     return query === '*' || query.toLowerCase() === 'all';
@@ -91,7 +88,6 @@ export class QueryClassifier {
 
   /**
    * Exact search pattern detection
-   * GDD: numbers and symbols only (no letters)
    */
   private isExactSearchPattern(query: string): boolean {
     return /^[^a-zA-Z]*$/.test(query) && query.length > 0;

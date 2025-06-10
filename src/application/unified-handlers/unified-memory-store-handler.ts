@@ -15,6 +15,13 @@ import { generateCompactId } from '../../id_generator';
 import { DIContainer } from '../../container/di-container';
 import { getLimitsConfig } from '../../config';
 import { Session } from 'neo4j-driver';
+import { 
+  MCPValidationError, 
+  MCPDatabaseError, 
+  MCPOperationError,
+  MCPErrorCodes,
+  detectNeo4jError 
+} from '../../infrastructure/errors';
 
 export interface MemoryDefinition {
   name: string;
@@ -147,6 +154,13 @@ export class UnifiedMemoryStoreHandler {
     } catch (error) {
       // ZERO-FALLBACK: Rollback everything on any error
       await tx.rollback();
+      
+      // Detect and throw specific Neo4j errors
+      const neo4jError = detectNeo4jError(error);
+      if (neo4jError) {
+        return this.buildErrorResponse(neo4jError, options);
+      }
+      
       return this.buildErrorResponse(error, options);
     } finally {
       await session.close();
@@ -252,9 +266,11 @@ export class UnifiedMemoryStoreHandler {
       });
       
       if (result.records.length === 0) {
-        throw new Error(
+        throw new MCPDatabaseError(
           `Failed to create relation: ${fromId} → ${toId} (${relation.type}). ` +
-          `One or both memories do not exist.`
+          `One or both memories do not exist.`,
+          MCPErrorCodes.MEMORY_NOT_FOUND,
+          { fromId, toId, relationType: relation.type }
         );
       }
       
@@ -330,7 +346,11 @@ export class UnifiedMemoryStoreHandler {
 
     // Extract created IDs - zero-fallback architecture demands success
     if (!result.success) {
-      throw new Error(`Memory creation failed: ${result.results.map((r: any) => r.error).filter(Boolean).join('; ')}`);
+      throw new MCPOperationError(
+        `Memory creation failed: ${result.results.map((r: any) => r.error).filter(Boolean).join('; ')}`,
+        MCPErrorCodes.DATABASE_OPERATION_FAILED,
+        { errors: result.results.filter((r: any) => r.error) }
+      );
     }
 
     return result.results
@@ -360,7 +380,11 @@ export class UnifiedMemoryStoreHandler {
         source: rel.source || 'agent'
       }));
     } catch (error) {
-      throw new Error(`Local ID resolution failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new MCPValidationError(
+        `Local ID resolution failed: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.INVALID_LOCAL_ID,
+        { originalError: error instanceof Error ? error.message : String(error) }
+      );
     }
 
     const result = await this.relationHandler.handleRelationManage({
@@ -374,7 +398,11 @@ export class UnifiedMemoryStoreHandler {
       const errors = failedRelations.map((r: any) => 
         `${r.fromId} → ${r.toId} (${r.relationType}): ${r.error || 'Unknown error'}`
       );
-      throw new Error(`Relation creation failed: ${errors.join('; ')}`);
+      throw new MCPOperationError(
+        `Relation creation failed: ${errors.join('; ')}`,
+        MCPErrorCodes.DATABASE_OPERATION_FAILED,
+        { failedRelations }
+      );
     }
 
     // Convert to ConnectionResult format
@@ -407,16 +435,27 @@ export class UnifiedMemoryStoreHandler {
   private validateStoreRequest(request: MemoryStoreRequest, options: StoreOptions): void {
     // Validate memory count
     if (request.memories.length === 0) {
-      throw new Error('memories array cannot be empty');
+      throw new MCPValidationError(
+        'memories array cannot be empty',
+        MCPErrorCodes.EMPTY_ARRAY
+      );
     }
     
     if (request.memories.length > options.maxMemories!) {
-      throw new Error(`Too many memories: ${request.memories.length} > ${options.maxMemories}`);
+      throw new MCPValidationError(
+        `Too many memories: ${request.memories.length} > ${options.maxMemories}`,
+        MCPErrorCodes.INVALID_MEMORY_COUNT,
+        { requested: request.memories.length, limit: options.maxMemories }
+      );
     }
 
     // Validate relation count
     if (request.relations && request.relations.length > options.maxRelations!) {
-      throw new Error(`Too many relations: ${request.relations.length} > ${options.maxRelations}`);
+      throw new MCPValidationError(
+        `Too many relations: ${request.relations.length} > ${options.maxRelations}`,
+        MCPErrorCodes.INVALID_RELATION_COUNT,
+        { requested: request.relations.length, limit: options.maxRelations }
+      );
     }
 
     // Validate local IDs
@@ -425,13 +464,23 @@ export class UnifiedMemoryStoreHandler {
     // Validate individual memories
     for (const memory of request.memories) {
       if (!memory.name?.trim()) {
-        throw new Error('Memory name cannot be empty');
+        throw new MCPValidationError(
+          'Memory name cannot be empty',
+          MCPErrorCodes.INVALID_NAME
+        );
       }
       if (!memory.memoryType?.trim()) {
-        throw new Error('Memory type cannot be empty');
+        throw new MCPValidationError(
+          'Memory type cannot be empty',
+          MCPErrorCodes.INVALID_TYPE
+        );
       }
       if (!memory.observations || memory.observations.length === 0) {
-        throw new Error(`Memory "${memory.name}" must have at least one observation`);
+        throw new MCPValidationError(
+          `Memory "${memory.name}" must have at least one observation`,
+          MCPErrorCodes.EMPTY_ARRAY,
+          { memoryName: memory.name }
+        );
       }
     }
 
@@ -439,13 +488,24 @@ export class UnifiedMemoryStoreHandler {
     if (request.relations) {
       for (const relation of request.relations) {
         if (!relation.from?.trim() || !relation.to?.trim()) {
-          throw new Error('Relation from/to IDs cannot be empty');
+          throw new MCPValidationError(
+            'Relation from/to IDs cannot be empty',
+            MCPErrorCodes.VALIDATION_FAILED,
+            { from: relation.from, to: relation.to }
+          );
         }
         if (!relation.type?.trim()) {
-          throw new Error('Relation type cannot be empty');
+          throw new MCPValidationError(
+            'Relation type cannot be empty',
+            MCPErrorCodes.INVALID_TYPE
+          );
         }
         if (relation.strength !== undefined && (relation.strength < 0 || relation.strength > 1)) {
-          throw new Error(`Relation strength must be between 0.0 and 1.0, got: ${relation.strength}`);
+          throw new MCPValidationError(
+            `Relation strength must be between 0.0 and 1.0, got: ${relation.strength}`,
+            MCPErrorCodes.INVALID_STRENGTH,
+            { providedStrength: relation.strength }
+          );
         }
       }
     }

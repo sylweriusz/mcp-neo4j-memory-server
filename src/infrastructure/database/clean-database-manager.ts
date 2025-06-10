@@ -6,6 +6,7 @@ import { Neo4jDriverManager } from './neo4j-driver';
 import { SessionFactory } from './session-factory';
 import { IndexManager } from './index-manager';
 import { DatabaseInfo } from '../../types';
+import { MCPDatabaseError, MCPValidationError, MCPErrorCodes } from '../errors';
 
 export class CleanDatabaseManager {
   private driverManager: Neo4jDriverManager;
@@ -23,7 +24,10 @@ export class CleanDatabaseManager {
       
       // Validate normalized name
       if (!this.isValidDatabaseName(normalizedName)) {
-        throw new Error(`Invalid database name after normalization: ${databaseName} -> ${normalizedName}`);
+        throw new MCPValidationError(
+          `Invalid database name after normalization: ${databaseName} -> ${normalizedName}`,
+          MCPErrorCodes.INVALID_DATABASE_NAME
+        );
       }
 
       // Get current database state
@@ -59,7 +63,11 @@ export class CleanDatabaseManager {
         created: !exists
       };
     } catch (error) {
-      throw new Error(`Failed to switch to database '${databaseName}': ${error}`);
+      throw new MCPDatabaseError(
+        `Failed to switch to database '${databaseName}': ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.DATABASE_OPERATION_FAILED,
+        { databaseName, originalError: error instanceof Error ? error.message : String(error) }
+      );
     }
   }
 
@@ -120,8 +128,7 @@ export class CleanDatabaseManager {
       // Wait a moment for database to be ready
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
-      console.warn(`Could not create database '${databaseName}': ${error}`);
-      // Continue anyway - some Neo4j configurations don't allow database creation
+      // Database creation might not be allowed - continue anyway (silent for compatibility)
     } finally {
       await systemSession.close();
     }
@@ -129,7 +136,10 @@ export class CleanDatabaseManager {
 
   private normalizeDatabaseName(name: string): string {
     if (!name || typeof name !== 'string') {
-      throw new Error('Database name must be a non-empty string');
+      throw new MCPValidationError(
+        'Database name must be a non-empty string',
+        MCPErrorCodes.INVALID_DATABASE_NAME
+      );
     }
     
     // Convert to lowercase and replace spaces with hyphens
@@ -154,7 +164,10 @@ export class CleanDatabaseManager {
     }
     
     if (!normalized) {
-      throw new Error(`Cannot normalize database name: ${name}`);
+      throw new MCPValidationError(
+        `Cannot normalize database name: ${name}`,
+        MCPErrorCodes.INVALID_DATABASE_NAME
+      );
     }
     
     return normalized;

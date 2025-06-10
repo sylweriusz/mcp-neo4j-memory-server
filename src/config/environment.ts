@@ -4,6 +4,8 @@
  * Note: dotenv.config() is called in main index.ts before any imports
  */
 
+import { MCPValidationError, MCPErrorCodes } from '../infrastructure/errors';
+
 export interface EnvironmentConfig {
   neo4j: {
     uri: string;
@@ -42,7 +44,10 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   // Validate required environment variables
   for (const varName of requiredVars) {
     if (!process.env[varName]) {
-      throw new Error(`Required environment variable ${varName} is not set`);
+      throw new MCPValidationError(
+        `Required environment variable ${varName} is not set`,
+        MCPErrorCodes.INVALID_ENVIRONMENT_CONFIG
+      );
     }
   }
 

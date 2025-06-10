@@ -7,6 +7,7 @@
 import { Session } from 'neo4j-driver';
 import { generateCompactId } from '../../../id_generator';
 import { calculateEmbedding } from '../../utilities';
+import { MCPDatabaseError, MCPValidationError, MCPServiceError, MCPErrorCodes } from '../../errors';
 
 export interface ObservationData {
   id: string;
@@ -31,30 +32,64 @@ export class ObservationRepository {
   private async createSingleObservation(session: Session, memoryId: string, content: string): Promise<void> {
     // THE VETERAN'S PARANOIA: Someone is passing objects instead of strings
     if (typeof content !== 'string' || !content.trim()) {
-      throw new Error('Observation content must be a non-empty string');
+      throw new MCPValidationError(
+        'Observation content must be a non-empty string',
+        MCPErrorCodes.INVALID_OBSERVATION_CONTENT,
+        { receivedType: typeof content, memoryId }
+      );
     }
     
     const obsId = generateCompactId();
-    // ZERO-FALLBACK ARCHITECTURE: Embedding calculation must succeed or operation fails
-    const embedding = await calculateEmbedding(content);
+    
+    try {
+      // ZERO-FALLBACK ARCHITECTURE: Embedding calculation must succeed or operation fails
+      const embedding = await calculateEmbedding(content);
 
-    await session.run(`
-      MATCH (m:Memory {id: $memoryId})
-      CREATE (o:Observation {
-        id: $obsId,
-        content: $content,
-        createdAt: $timestamp,
-        embedding: $embedding
-      })
-      CREATE (m)-[:HAS_OBSERVATION]->(o)`,
-      { 
-        memoryId, 
-        obsId, 
-        content, 
-        timestamp: new Date().toISOString(),
-        embedding
+      await session.run(`
+        MATCH (m:Memory {id: $memoryId})
+        CREATE (o:Observation {
+          id: $obsId,
+          content: $content,
+          createdAt: $timestamp,
+          embedding: $embedding
+        })
+        CREATE (m)-[:HAS_OBSERVATION]->(o)`,
+        { 
+          memoryId, 
+          obsId, 
+          content, 
+          timestamp: new Date().toISOString(),
+          embedding
+        }
+      );
+    } catch (error) {
+      if (error instanceof MCPValidationError) {
+        throw error; // Re-throw validation errors
       }
-    );
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Cannot calculate embedding')) {
+          throw new MCPServiceError(
+            `Embedding service failed: ${error.message}`,
+            MCPErrorCodes.EMBEDDING_SERVICE_ERROR,
+            { observationId: obsId, memoryId }
+          );
+        }
+        
+        if (error.message.includes('ServiceUnavailable')) {
+          throw new MCPDatabaseError(
+            'Database service unavailable',
+            MCPErrorCodes.DATABASE_UNAVAILABLE
+          );
+        }
+      }
+      
+      throw new MCPDatabaseError(
+        `Failed to create observation: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.DATABASE_OPERATION_FAILED,
+        { observationId: obsId, memoryId }
+      );
+    }
   }
 
   /**

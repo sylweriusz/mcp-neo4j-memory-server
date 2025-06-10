@@ -28,6 +28,13 @@ import {
   UnifiedMemoryFindHandler,
   UnifiedMemoryModifyHandler
 } from "../application/unified-handlers";
+import {
+  MCPValidationError,
+  MCPDatabaseError,
+  MCPServiceError,
+  isMCPError,
+  toMCPError
+} from "../infrastructure/errors";
 
 /**
  * Create and configure MCP server with tools
@@ -36,7 +43,7 @@ import {
 function createMCPServer(): McpServer {
   const server = new McpServer({
     name: "neo4j-memory-server",
-    version: "3.0.2"
+    version: "3.1.0"
   });
 
   // Lazy handler factory - safe for tool scanning
@@ -78,18 +85,6 @@ function createMCPServer(): McpServer {
     return handlerPromise;
   };
 
-  const handleToolError = (toolName: string, error: any) => {
-    return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          error: `${toolName} failed`,
-          details: String(error)
-        }, null, 2)
-      }]
-    };
-  };
-
   // =============================================================================
   // UNIFIED TOOLS IMPLEMENTATION (Exactly 4 tools as specified)
   // =============================================================================
@@ -97,22 +92,22 @@ function createMCPServer(): McpServer {
   // Tool 1: memory_store
   server.tool(
     "memory_store",
-    "Create memories with observations and immediate relations in ONE operation. Use localId ONLY within this single request - they expire when operation completes. For existing memories, use real IDs from previous responses.",
+    "Creates new memories with observations and establishes relationships in one atomic operation. Use 'localId' for cross-references within THIS request only. Metadata = classification, observations = content. Include language in metadata. **Always search before creating to avoid duplicates.**",
     {
       memories: z.array(z.object({
-        name: z.string().describe("Memory display name"),
-        memoryType: z.string().describe("Classification type"),
-        localId: z.string().optional().describe("Temporary ID for THIS request only - expires after operation"),
-        observations: z.array(z.string()).describe("Initial observation content"),
-        metadata: z.record(z.any()).optional().describe("Structured metadata (JSON)")
-      })).describe("Memories to create"),
+        name: z.string().describe("Human-readable memory name. Make it descriptive and searchable."),
+        memoryType: z.string().describe("Memory classification (e.g., knowledge, decision, pattern, implementation, architecture)"),
+        localId: z.string().optional().describe("Temporary reference ID valid ONLY within this request. Use for relations between new memories."),
+        observations: z.array(z.string()).describe("Content fragments. **One session = one observation.** Don't over-fragment. Add what you learned NOW."),
+        metadata: z.record(z.any()).optional().describe("Classification data. Include: language, project, status, tags, dates, etc.")
+      })).describe("Array of memories to create. Check if similar memories exist first."),
       relations: z.array(z.object({
         from: z.string().describe("Source localId or existing memoryId"),
         to: z.string().describe("Target localId or existing memoryId"),
-        type: z.string().describe("Relationship type (INFLUENCES, DEPENDS_ON, etc.)"),
+        type: z.string().describe("Relationship type: INFLUENCES, DEPENDS_ON, EXTENDS, IMPLEMENTS, CONTAINS, etc."),
         strength: z.number().min(0.0).max(1.0).optional().describe("0.0-1.0, defaults to 0.5"),
         source: z.enum(['agent', 'user', 'system']).optional().describe("defaults to 'agent'")
-      })).optional().describe("Relations to establish"),
+      })).optional().describe("Relationships to create between memories."),
       options: z.object({
         validateReferences: z.boolean().optional().describe("Check all target IDs exist (default: true)"),
         allowDuplicateRelations: z.boolean().optional().describe("Skip/error on duplicates (default: false)"),
@@ -133,7 +128,7 @@ function createMCPServer(): McpServer {
           }],
         };
       } catch (error) {
-        return handleToolError("memory_store", error);
+        throw toMCPError(error);
       }
     }
   );
@@ -141,13 +136,13 @@ function createMCPServer(): McpServer {
   // Tool 2: memory_find
   server.tool(
     "memory_find",
-    "Unified search and retrieval tool supporting semantic search, direct ID lookup, wildcard queries, date-based filtering, and graph traversal. Control response detail with context levels: 'minimal' for lists, 'full' for detailed work, 'relations-only' for graph analysis. **Searches in current database context.**",
+    "Finds existing memories using semantic search, IDs, or filters. Use '*' for all memories. **Search before creating new memories.** Context levels: 'minimal' for lists, 'full' for complete data, 'relations-only' for graph analysis. Updates access timestamps.",
     {
-      query: z.union([z.string(), z.array(z.string())]).describe("Search query, '*' for all, or array of IDs"),
-      limit: z.number().optional().describe("Max results (default: 10)"),
-      memoryTypes: z.array(z.string()).optional().describe("Filter by memory types"),
-      includeContext: z.enum(["minimal", "full", "relations-only"]).optional().describe("Response detail level (default: 'full')"),
-      threshold: z.number().min(0.0).max(1.0).optional().describe("Min relevance score 0.0-1.0 (default: 0.1)"),
+      query: z.union([z.string(), z.array(z.string())]).describe("Search query (semantic), '*' for all memories, or array of specific IDs to retrieve"),
+      limit: z.number().optional().describe("Maximum results to return. Default: 10, use higher for comprehensive searches"),
+      memoryTypes: z.array(z.string()).optional().describe("Filter by types (e.g., ['knowledge', 'decision']). Leave empty for all types."),
+      includeContext: z.enum(["minimal", "full", "relations-only"]).optional().describe("Detail level: 'minimal' (id/name/type only), 'full' (everything), 'relations-only' (graph data)"),
+      threshold: z.number().min(0.0).max(1.0).optional().describe("Minimum semantic match score (0.0-1.0). Lower = more results. Default: 0.1"),
       orderBy: z.enum(["relevance", "created", "modified", "accessed"]).optional().describe("Sort order (default: 'relevance')"),
       
       // Date-based filtering
@@ -174,7 +169,7 @@ function createMCPServer(): McpServer {
           }],
         };
       } catch (error) {
-        return handleToolError("memory_find", error);
+        throw toMCPError(error);
       }
     }
   );
@@ -182,14 +177,14 @@ function createMCPServer(): McpServer {
   // Tool 3: memory_modify
   server.tool(
     "memory_modify",
-    "Comprehensive modification tool for existing memories. Handle memory property updates, deletions, observation management, and relationship operations. Supports both single and batch operations with transactional safety. **Modifies memories in current database context.**",
+    "Modifies existing memories: update properties, manage observations, handle relationships. Use for adding to existing memories. **One session = one observation.** All operations are transactional (all-or-nothing).",
     {
       operation: z.enum([
         "update", "delete", "batch-delete",
         "add-observations", "delete-observations", 
         "create-relations", "update-relations", "delete-relations"
-      ]).describe("Operation type"),
-      target: z.string().optional().describe("Memory ID for single operations"),
+      ]).describe("What to do: update, delete, add-observations (common), create-relations, etc."),
+      target: z.string().optional().describe("Single memory ID to modify. Use 'targets' for batch operations."),
       targets: z.array(z.string()).optional().describe("Multiple IDs for batch operations"),
       changes: z.object({
         name: z.string().optional().describe("New memory name"),
@@ -198,15 +193,15 @@ function createMCPServer(): McpServer {
       }).optional().describe("For update operations"),
       observations: z.array(z.object({
         memoryId: z.string().describe("Target memory ID"),
-        contents: z.array(z.string()).describe("Observation texts (add) or IDs (delete)")
-      })).optional().describe("For observation operations"),
+        contents: z.array(z.string()).describe("For add: observation text(s). For delete: observation IDs. Don't over-fragment when adding.")
+      })).optional().describe("Observations to add/delete. **Add what you learned in THIS session as ONE observation.**"),
       relations: z.array(z.object({
         from: z.string().describe("Source memory ID"),
         to: z.string().describe("Target memory ID"),
-        type: z.string().describe("Relation type"),
+        type: z.string().describe("Relationship type: INFLUENCES, DEPENDS_ON, EXTENDS, IMPLEMENTS, CONTAINS, etc."),
         strength: z.number().min(0.0).max(1.0).optional().describe("For create/update operations (0.0-1.0)"),
         source: z.enum(['agent', 'user', 'system']).optional().describe("For create operations")
-      })).optional().describe("For relation operations"),
+      })).optional().describe("Relationships to create/update/delete between existing memories."),
       options: z.object({
         cascadeDelete: z.boolean().optional().describe("Delete related observations/relations (default: true)"),
         validateObservationIds: z.boolean().optional().describe("Validate observation IDs for delete (default: true)"),
@@ -225,7 +220,7 @@ function createMCPServer(): McpServer {
           }],
         };
       } catch (error) {
-        return handleToolError("memory_modify", error);
+        throw toMCPError(error);
       }
     }
   );
@@ -233,9 +228,9 @@ function createMCPServer(): McpServer {
   // Tool 4: database_switch
   server.tool(
     "database_switch",
-    "Switches to different database context for all subsequent operations. Global state change - all memory operations after this call will execute in the specified database. Always creates database if it doesn't exist.",
+    "Switches active database for ALL subsequent operations. **Use when: starting work on specific project, switching contexts, or if operations report wrong database.** Creates database if needed. This is a session-level change.",
     {
-      databaseName: z.string().describe("Database name to switch to")
+      databaseName: z.string().describe("Target database name. Will be created if it doesn't exist. All future operations use this database.")
     },
     async (args) => {
       try {
@@ -249,7 +244,7 @@ function createMCPServer(): McpServer {
           }],
         };
       } catch (error) {
-        return handleToolError("database_switch", error);
+        throw toMCPError(error);
       }
     }
   );
@@ -306,9 +301,35 @@ class SimpleHTTPServer {
       try {
         await this.handleMCPRequest(req, res);
       } catch (error) {
+        let errorCode = -32603; // Default internal error
+        let errorMessage = 'Internal server error';
+        let errorData: any = undefined;
+        
+        // Detect specific error types
+        if (isMCPError(error)) {
+          const mcpError = error as any;
+          if (mcpError instanceof MCPValidationError) {
+            errorCode = -32602; // Invalid params
+            errorMessage = mcpError.message;
+            errorData = mcpError.data;
+          } else if (mcpError instanceof MCPDatabaseError) {
+            errorCode = -32603; // Internal error
+            errorMessage = 'Database operation failed';
+            errorData = { category: 'database' };
+          } else if (mcpError instanceof MCPServiceError) {
+            errorCode = -32603; // Internal error  
+            errorMessage = 'Service unavailable';
+            errorData = { category: 'service', service: (mcpError.data as any)?.service };
+          }
+        }
+        
         res.status(500).json({
           jsonrpc: "2.0",
-          error: { code: -32603, message: "Internal server error" },
+          error: { 
+            code: errorCode, 
+            message: errorMessage,
+            ...(errorData && { data: errorData })
+          },
           id: null
         });
       }
@@ -370,16 +391,17 @@ class SimpleHTTPServer {
           try {
             // Connect to MCP server
             await this.mcpServer.connect(transport);
-          } catch (error) {
+          } catch (connectionError) {
             // Clean up on connection failure
             this.transports.delete(responseSessionId);
-            console.error('MCP server connection failed:', error);
+            
+            const errorMessage = connectionError instanceof Error ? connectionError.message : String(connectionError);
             res.status(500).json({
               jsonrpc: "2.0",
               error: { 
                 code: -32603, 
                 message: "MCP server connection failed",
-                data: error instanceof Error ? error.message : String(error)
+                data: { reason: errorMessage }
               },
               id: (req.body as any)?.id || null
             });
@@ -401,14 +423,14 @@ class SimpleHTTPServer {
 
         // Handle the request using transport
         await transport.handleRequest(req, res, req.body);
-      } catch (error) {
-        console.error('HTTP request handling failed:', error);
+      } catch (handlingError) {
+        const errorMessage = handlingError instanceof Error ? handlingError.message : String(handlingError);
         res.status(500).json({
           jsonrpc: "2.0",
           error: { 
             code: -32603, 
             message: "Request handling failed",
-            data: error instanceof Error ? error.message : String(error)
+            data: { reason: errorMessage }
           },
           id: (req.body as any)?.id || null
         });

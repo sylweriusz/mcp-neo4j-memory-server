@@ -11,6 +11,7 @@ import { ExactSearchChannel } from './exact-search-channel';
 import { VectorSearchChannel, VectorCandidate } from './vector-search-channel';
 import { WildcardSearchService } from './wildcard-search-service';
 import { EnhancedSearchResult } from '../../../types';
+import { MCPValidationError, MCPServiceError, MCPErrorCodes } from '../../errors';
 
 export interface SimpleSearchResult extends EnhancedSearchResult {
   score: number;                    // Raw mathematical similarity (0.0-1.0)
@@ -46,11 +47,18 @@ export class SimplifiedSearchService {
   ): Promise<SimpleSearchResult[]> {
     // Input validation
     if (!query || typeof query !== 'string') {
-      throw new Error('Search query must be a non-empty string');
+      throw new MCPValidationError(
+        'Search query must be a non-empty string',
+        MCPErrorCodes.INVALID_SEARCH_QUERY
+      );
     }
     
     if (limit <= 0) {
-      throw new Error('Search limit must be positive');
+      throw new MCPValidationError(
+        'Search limit must be positive',
+        MCPErrorCodes.INVALID_PARAMETER,
+        { parameter: 'limit', value: limit }
+      );
     }
 
     // Query classification
@@ -104,7 +112,7 @@ export class SimplifiedSearchService {
         );
       } catch (error) {
         // Vector search failed - continue with exact results only
-        console.warn(`[SimplifiedSearchService] Vector search failed - falling back to exact search only: ${error instanceof Error ? error.message : String(error)}`);
+        // Silent failure allowed here as we have exact search fallback
       }
     }
 

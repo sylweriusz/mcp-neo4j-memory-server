@@ -131,8 +131,8 @@ export class IndexManager {
       try {
         await this.session.run(index);
       } catch (error) {
-        console.error(`[IndexManager] Fulltext index failed: ${index}`, error);
-        throw error; // Fail fast - no silent failures
+        // Fulltext index creation failed - real problem, no console output
+        throw new Error(`Fulltext index failed: ${index} - ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }

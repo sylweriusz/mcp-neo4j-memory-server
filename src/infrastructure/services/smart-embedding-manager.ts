@@ -6,6 +6,7 @@
 
 import { pipeline } from '@xenova/transformers';
 import { getVectorConfig } from '../../config';
+import { MCPServiceError, MCPValidationError, MCPErrorCodes } from '../errors';
 
 export interface EmbeddingManager {
   calculateEmbedding(text: string): Promise<number[]>;
@@ -32,7 +33,10 @@ export class SmartEmbeddingManager implements EmbeddingManager {
 
   async calculateEmbedding(text: string): Promise<number[]> {
     if (!text || text.trim() === '') {
-      throw new Error('Cannot calculate embedding for empty text');
+      throw new MCPValidationError(
+        'Cannot calculate embedding for empty text',
+        MCPErrorCodes.VALIDATION_FAILED
+      );
     }
 
     const model = await this.ensureModel();
@@ -46,8 +50,12 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       
       return Array.from(result.data);
     } catch (error) {
-      console.error('Error calculating embedding:', error);
-      throw error;
+      // Zero-fallback: Fail with proper error, no console output
+      throw new MCPServiceError(
+        `Embedding calculation failed: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.EMBEDDING_SERVICE_ERROR,
+        { originalError: error instanceof Error ? error.message : String(error) }
+      );
     }
   }
 
@@ -92,7 +100,11 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       
       return dotProduct / (mag1 * mag2);
     } catch (error) {
-      return 0;
+      throw new MCPServiceError(
+        `Similarity calculation failed: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.EMBEDDING_SERVICE_ERROR,
+        { operation: 'calculateSimilarity' }
+      );
     }
   }
 
@@ -133,11 +145,18 @@ export class SmartEmbeddingManager implements EmbeddingManager {
       
       this.lastUsed = Date.now();
     } catch (error) {
-      console.error('Failed to load embedding model:', error);
+      // Zero-fallback: Fail immediately, no console output
       this.model = null;
       this.modelDimensions = 0;
       this.loadingPromise = null;
-      throw error;
+      throw new MCPServiceError(
+        `Failed to load embedding model: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.EMBEDDING_SERVICE_ERROR,
+        { 
+          model: this.config.modelName,
+          originalError: error instanceof Error ? error.message : String(error)
+        }
+      );
     }
   }
 

@@ -6,6 +6,7 @@
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { createErrorMessage } from '../../infrastructure/utilities';
+import { MCPResourceNotFoundError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export interface RelationRequest {
   fromId: string;
@@ -23,12 +24,12 @@ export class ManageRelationsUseCase {
     // Verify both memories exist
     const fromMemory = await this.memoryRepository.findById(request.fromId);
     if (!fromMemory) {
-      throw new Error(`Source memory with id ${request.fromId} not found`);
+      throw new MCPResourceNotFoundError('Source memory', request.fromId, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     const toMemory = await this.memoryRepository.findById(request.toId);
     if (!toMemory) {
-      throw new Error(`Target memory with id ${request.toId} not found`);
+      throw new MCPResourceNotFoundError('Target memory', request.toId, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     // Enhanced relation creation without context complexity
@@ -49,7 +50,7 @@ export class ManageRelationsUseCase {
     // Verify relation exists
     const fromMemory = await this.memoryRepository.findById(request.fromId);
     if (!fromMemory) {
-      throw new Error(`Source memory with id ${request.fromId} not found`);
+      throw new MCPResourceNotFoundError('Source memory', request.fromId, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     // Delete the relation

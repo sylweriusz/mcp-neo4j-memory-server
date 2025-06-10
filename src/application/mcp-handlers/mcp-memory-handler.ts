@@ -4,20 +4,30 @@
  */
 import { DIContainer } from '../../container/di-container';
 import { createErrorMessage } from '../../infrastructure/utilities';
+import { MCPValidationError, MCPOperationError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export class McpMemoryHandler {
   private container: DIContainer;
-  private databaseInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor() {
     this.container = DIContainer.getInstance();
   }
 
+  /**
+   * ZERO-FALLBACK: Thread-safe database initialization
+   * Uses Promise-based singleton pattern to prevent race conditions
+   */
   private async ensureDatabaseInitialized(): Promise<void> {
-    if (!this.databaseInitialized) {
-      await this.container.initializeDatabase();
-      this.databaseInitialized = true;
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.container.initializeDatabase()
+        .catch((error) => {
+          // Reset promise on failure to allow retry
+          this.initializationPromise = null;
+          throw error;
+        });
     }
+    return this.initializationPromise;
   }
 
   async handleMemoryManage(request: {
@@ -26,6 +36,9 @@ export class McpMemoryHandler {
     updates?: any[];
     identifiers?: string[];
   }): Promise<any> {
+    // Input validation - fail fast
+    this.validateMemoryManageRequest(request);
+    
     await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     
@@ -37,11 +50,17 @@ export class McpMemoryHandler {
       case 'delete':
         return this.handleDeleteMemories(request.identifiers!, currentDb);
       default:
-        throw new Error(`Invalid operation: ${request.operation}`);
+        throw new MCPOperationError(
+          `Invalid operation: ${request.operation}. Valid operations: create, update, delete`,
+          MCPErrorCodes.VALIDATION_FAILED
+        );
     }
   }
 
   async handleMemoryRetrieve(identifiers: string[]): Promise<any> {
+    // Input validation - fail fast
+    this.validateIdentifiers(identifiers);
+    
     await this.ensureDatabaseInitialized();
     const currentDb = this.container.getCurrentDatabase();
     const memoryRepo = this.container.getMemoryRepository();
@@ -64,7 +83,9 @@ export class McpMemoryHandler {
     memoryTypes?: string[],
     threshold?: number
   ): Promise<any> {
-    // Parameter validation performed
+    // Input validation - fail fast
+    this.validateSearchRequest(query, limit, threshold);
+    
     await this.ensureDatabaseInitialized();
     
     const currentDb = this.container.getCurrentDatabase();
@@ -94,7 +115,10 @@ export class McpMemoryHandler {
 
   private async handleCreateMemories(memories: any[], currentDb: any): Promise<any> {
     if (!memories || !Array.isArray(memories) || memories.length === 0) {
-      throw new Error("memories array cannot be empty");
+      throw new MCPValidationError(
+        "memories array cannot be empty",
+        MCPErrorCodes.EMPTY_ARRAY
+      );
     }
     
     const createUseCase = this.container.getCreateMemoryUseCase();
@@ -134,7 +158,10 @@ export class McpMemoryHandler {
 
   private async handleUpdateMemories(updates: any[], currentDb: any): Promise<any> {
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
-      throw new Error("updates array cannot be empty");
+      throw new MCPValidationError(
+        "updates array cannot be empty",
+        MCPErrorCodes.EMPTY_ARRAY
+      );
     }
     
     const updateUseCase = this.container.getUpdateMemoryUseCase();
@@ -174,7 +201,10 @@ export class McpMemoryHandler {
 
   private async handleDeleteMemories(identifiers: string[], currentDb: any): Promise<any> {
     if (!identifiers || !Array.isArray(identifiers) || identifiers.length === 0) {
-      throw new Error("identifiers array cannot be empty");
+      throw new MCPValidationError(
+        "identifiers array cannot be empty",
+        MCPErrorCodes.EMPTY_ARRAY
+      );
     }
     
     const deleteUseCase = this.container.getDeleteMemoryUseCase();
@@ -215,5 +245,172 @@ export class McpMemoryHandler {
   private stripEmbeddings(memory: any): any {
     const { nameEmbedding, ...cleanMemory } = memory;
     return cleanMemory;
+  }
+
+  /**
+   * Validate memory manage request structure
+   * ZERO-FALLBACK: Invalid requests fail immediately
+   */
+  private validateMemoryManageRequest(request: {
+    operation: 'create' | 'update' | 'delete';
+    memories?: any[];
+    updates?: any[];
+    identifiers?: string[];
+  }): void {
+    if (!request.operation) {
+      throw new MCPValidationError(
+        'Operation is required',
+        MCPErrorCodes.VALIDATION_FAILED
+      );
+    }
+
+    switch (request.operation) {
+      case 'create':
+        if (!request.memories || !Array.isArray(request.memories) || request.memories.length === 0) {
+          throw new MCPValidationError(
+            'Create operation requires non-empty memories array',
+            MCPErrorCodes.EMPTY_ARRAY
+          );
+        }
+        this.validateMemoryCreationData(request.memories);
+        break;
+      case 'update':
+        if (!request.updates || !Array.isArray(request.updates) || request.updates.length === 0) {
+          throw new MCPValidationError(
+            'Update operation requires non-empty updates array',
+            MCPErrorCodes.EMPTY_ARRAY
+          );
+        }
+        this.validateMemoryUpdateData(request.updates);
+        break;
+      case 'delete':
+        if (!request.identifiers || !Array.isArray(request.identifiers) || request.identifiers.length === 0) {
+          throw new MCPValidationError(
+            'Delete operation requires non-empty identifiers array',
+            MCPErrorCodes.EMPTY_ARRAY
+          );
+        }
+        this.validateIdentifiers(request.identifiers);
+        break;
+    }
+  }
+
+  /**
+   * Validate memory creation data
+   */
+  private validateMemoryCreationData(memories: any[]): void {
+    for (let i = 0; i < memories.length; i++) {
+      const memory = memories[i];
+      if (!memory || typeof memory !== 'object') {
+        throw new MCPValidationError(
+          `Memory at index ${i} must be an object`,
+          MCPErrorCodes.VALIDATION_FAILED
+        );
+      }
+      if (!memory.name || typeof memory.name !== 'string' || memory.name.trim().length === 0) {
+        throw new MCPValidationError(
+          `Memory at index ${i} must have a non-empty name`,
+          MCPErrorCodes.INVALID_NAME
+        );
+      }
+      if (!memory.memoryType || typeof memory.memoryType !== 'string' || memory.memoryType.trim().length === 0) {
+        throw new MCPValidationError(
+          `Memory at index ${i} must have a non-empty memoryType`,
+          MCPErrorCodes.INVALID_TYPE
+        );
+      }
+    }
+  }
+
+  /**
+   * Validate memory update data
+   */
+  private validateMemoryUpdateData(updates: any[]): void {
+    for (let i = 0; i < updates.length; i++) {
+      const update = updates[i];
+      if (!update || typeof update !== 'object') {
+        throw new MCPValidationError(
+          `Update at index ${i} must be an object`,
+          MCPErrorCodes.VALIDATION_FAILED
+        );
+      }
+      if (!update.id || typeof update.id !== 'string' || update.id.trim().length === 0) {
+        throw new MCPValidationError(
+          `Update at index ${i} must have a non-empty id`,
+          MCPErrorCodes.INVALID_ID_FORMAT
+        );
+      }
+      if (update.id.length !== 18) {
+        throw new MCPValidationError(
+          `Update at index ${i} has invalid id format (expected 18 characters)`,
+          MCPErrorCodes.INVALID_MEMORY_ID_LENGTH
+        );
+      }
+    }
+  }
+
+  /**
+   * Validate identifiers array
+   */
+  private validateIdentifiers(identifiers: string[]): void {
+    if (!Array.isArray(identifiers)) {
+      throw new MCPValidationError(
+        'Identifiers must be an array',
+        MCPErrorCodes.VALIDATION_FAILED
+      );
+    }
+    if (identifiers.length === 0) {
+      throw new MCPValidationError(
+        'Identifiers array cannot be empty',
+        MCPErrorCodes.EMPTY_ARRAY
+      );
+    }
+    for (let i = 0; i < identifiers.length; i++) {
+      const id = identifiers[i];
+      if (!id || typeof id !== 'string' || id.trim().length === 0) {
+        throw new MCPValidationError(
+          `Identifier at index ${i} must be a non-empty string`,
+          MCPErrorCodes.INVALID_ID_FORMAT
+        );
+      }
+      if (id.length !== 18) {
+        throw new MCPValidationError(
+          `Identifier at index ${i} has invalid format (expected 18 characters)`,
+          MCPErrorCodes.INVALID_MEMORY_ID_LENGTH
+        );
+      }
+    }
+  }
+
+  /**
+   * Validate search request parameters
+   */
+  private validateSearchRequest(query: string, limit: number, threshold?: number): void {
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new MCPValidationError(
+        'Search query must be a non-empty string',
+        MCPErrorCodes.EMPTY_QUERY
+      );
+    }
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw new MCPValidationError(
+        'Search limit must be a positive integer',
+        MCPErrorCodes.INVALID_LIMIT
+      );
+    }
+    if (limit > 1000) {
+      throw new MCPValidationError(
+        'Search limit cannot exceed 1000',
+        MCPErrorCodes.INVALID_LIMIT
+      );
+    }
+    if (threshold !== undefined) {
+      if (typeof threshold !== 'number' || threshold < 0 || threshold > 1) {
+        throw new MCPValidationError(
+          'Search threshold must be a number between 0 and 1',
+          MCPErrorCodes.INVALID_THRESHOLD
+        );
+      }
+    }
   }
 }

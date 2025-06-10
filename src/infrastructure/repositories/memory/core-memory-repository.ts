@@ -6,6 +6,7 @@
 
 import { Session } from 'neo4j-driver';
 import { Memory } from '../../../domain/entities/memory';
+import { MCPDatabaseError, MCPValidationError, MCPErrorCodes } from '../../errors';
 
 export interface CoreMemoryData {
   id: string;
@@ -36,22 +37,48 @@ export class CoreMemoryRepository {
       })
       RETURN m`;
 
-    const result = await session.run(cypher, {
-      id: memory.id,
-      name: memory.name,
-      memoryType: memory.memoryType,
-      metadata: JSON.stringify(memory.metadata || {}),
-      createdAt: this.toISOString(memory.createdAt),
-      modifiedAt: this.toISOString(memory.modifiedAt),
-      lastAccessed: this.toISOString(memory.lastAccessed),
-      nameEmbedding: (memory as any).nameEmbedding || null
-    });
+    try {
+      const result = await session.run(cypher, {
+        id: memory.id,
+        name: memory.name,
+        memoryType: memory.memoryType,
+        metadata: JSON.stringify(memory.metadata || {}),
+        createdAt: this.toISOString(memory.createdAt),
+        modifiedAt: this.toISOString(memory.modifiedAt),
+        lastAccessed: this.toISOString(memory.lastAccessed),
+        nameEmbedding: (memory as any).nameEmbedding || null
+      });
 
-    if (result.records.length === 0) {
-      throw new Error('Failed to create memory node');
+      if (result.records.length === 0) {
+        throw new MCPDatabaseError(
+          `Failed to create memory node: ${memory.id}`,
+          MCPErrorCodes.DATABASE_OPERATION_FAILED,
+          { memoryId: memory.id, operation: 'create' }
+        );
+      }
+
+      return memory;
+    } catch (dbError) {
+      // Detect specific Neo4j errors
+      if (dbError instanceof Error) {
+        if (dbError.message.includes('ConstraintValidationFailed')) {
+          throw new MCPValidationError(
+            `Memory with ID ${memory.id} already exists`,
+            MCPErrorCodes.DUPLICATE_ID,
+            { memoryId: memory.id }
+          );
+        }
+        
+        if (dbError.message.includes('ServiceUnavailable')) {
+          throw new MCPDatabaseError(
+            'Database service unavailable',
+            MCPErrorCodes.DATABASE_UNAVAILABLE
+          );
+        }
+      }
+      
+      throw dbError; // Re-throw unknown errors
     }
-
-    return memory;
   }
 
   /**
@@ -135,29 +162,51 @@ export class CoreMemoryRepository {
           m.modifiedAt = $modifiedAt
       RETURN m`;
     
-    const result = await session.run(updateCypher, {
-      id: memory.id,
-      name: memory.name,
-      memoryType: memory.memoryType,
-      metadata: JSON.stringify(memory.metadata || {}),
-      modifiedAt: this.toISOString(memory.modifiedAt)
-    });
-    
-    if (result.records.length === 0) {
-      throw new Error(`Memory with id ${memory.id} not found`);
+    try {
+      const result = await session.run(updateCypher, {
+        id: memory.id,
+        name: memory.name,
+        memoryType: memory.memoryType,
+        metadata: JSON.stringify(memory.metadata || {}),
+        modifiedAt: this.toISOString(memory.modifiedAt)
+      });
+      
+      if (result.records.length === 0) {
+        throw new MCPDatabaseError(
+          `Memory with id ${memory.id} not found`,
+          MCPErrorCodes.RESOURCE_NOT_FOUND,
+          { memoryId: memory.id }
+        );
+      }
+      
+      // Return the updated memory domain entity
+      const updatedRecord = result.records[0].get('m');
+      return {
+        id: updatedRecord.properties.id,
+        name: updatedRecord.properties.name,
+        memoryType: updatedRecord.properties.memoryType,
+        metadata: this.parseMetadata(updatedRecord.properties.metadata),
+        createdAt: new Date(updatedRecord.properties.createdAt),
+        modifiedAt: new Date(updatedRecord.properties.modifiedAt),
+        lastAccessed: new Date(updatedRecord.properties.lastAccessed)
+      };
+    } catch (error) {
+      if (error instanceof MCPDatabaseError) {
+        throw error; // Re-throw our errors
+      }
+      
+      if (error instanceof Error && error.message.includes('ServiceUnavailable')) {
+        throw new MCPDatabaseError(
+          'Database service unavailable',
+          MCPErrorCodes.DATABASE_UNAVAILABLE
+        );
+      }
+      
+      throw new MCPDatabaseError(
+        `Failed to update memory: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.DATABASE_OPERATION_FAILED
+      );
     }
-    
-    // Return the updated memory domain entity
-    const updatedRecord = result.records[0].get('m');
-    return {
-      id: updatedRecord.properties.id,
-      name: updatedRecord.properties.name,
-      memoryType: updatedRecord.properties.memoryType,
-      metadata: this.parseMetadata(updatedRecord.properties.metadata),
-      createdAt: new Date(updatedRecord.properties.createdAt),
-      modifiedAt: new Date(updatedRecord.properties.modifiedAt),
-      lastAccessed: new Date(updatedRecord.properties.lastAccessed)
-    };
   }
 
   /**

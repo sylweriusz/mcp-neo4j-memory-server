@@ -4,6 +4,7 @@
  */
 
 import { SearchRepository, SearchRequest, SearchResult } from '../../domain/repositories/search-repository';
+import { MCPValidationError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export class SearchMemoriesUseCase {
   constructor(private searchRepository: SearchRepository) {}
@@ -11,15 +12,24 @@ export class SearchMemoriesUseCase {
   async execute(request: SearchRequest): Promise<SearchResult[]> {
     // Validate search request
     if (!request.query || request.query.trim().length === 0) {
-      throw new Error('Search query is required');
+      throw new MCPValidationError(
+        'Search query is required',
+        MCPErrorCodes.EMPTY_QUERY
+      );
     }
 
     if (request.limit !== undefined && request.limit <= 0) {
-      throw new Error('Search limit must be positive');
+      throw new MCPValidationError(
+        'Search limit must be positive',
+        MCPErrorCodes.INVALID_LIMIT
+      );
     }
 
     if (request.threshold && (request.threshold < 0 || request.threshold > 1)) {
-      throw new Error('Search threshold must be between 0 and 1');
+      throw new MCPValidationError(
+        'Search threshold must be between 0 and 1',
+        MCPErrorCodes.INVALID_THRESHOLD
+      );
     }
 
     // Execute search through repository

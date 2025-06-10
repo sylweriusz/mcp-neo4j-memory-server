@@ -1,13 +1,10 @@
 /**
  * Memory Domain Entity Interface
  * Single responsibility: Memory data structure and validation
- */
-
-/**
- * Memory Domain Entity Interface
- * Single responsibility: Memory data structure and validation
  * THE SINGLE SOURCE OF TRUTH for Memory types
  */
+
+import { MCPValidationError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export interface MemoryObservation {
   id?: string;

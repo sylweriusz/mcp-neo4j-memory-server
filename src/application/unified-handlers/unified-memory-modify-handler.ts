@@ -11,6 +11,13 @@ import {
 } from '../mcp-handlers';
 import { DIContainer } from '../../container/di-container';
 import { RelationRepository } from '../../infrastructure/repositories/memory/relation-repository';
+import { 
+  MCPError, 
+  MCPValidationError, 
+  MCPDatabaseError, 
+  MCPOperationError,
+  MCPErrorCodes
+} from '../../infrastructure/errors';
 
 export type ModifyOperation = 
   | "update" | "delete" | "batch-delete"
@@ -116,12 +123,24 @@ export class UnifiedMemoryModifyHandler {
           result = await this.handleDeleteRelations(request);
           break;
         default:
-          throw new Error(`Unknown operation: ${request.operation}`);
+          throw new MCPValidationError(
+            `Unknown operation: ${request.operation}`,
+            MCPErrorCodes.VALIDATION_FAILED,
+            { operation: request.operation }
+          );
       }
       
       return this.formatResponse(result, request.operation);
       
     } catch (error) {
+      // Re-throw typed errors
+      if (error instanceof MCPValidationError || 
+          error instanceof MCPDatabaseError || 
+          error instanceof MCPOperationError) {
+        throw error;
+      }
+      
+      // Convert generic errors to typed errors
       return this.buildErrorResponse(error, request.operation);
     }
   }
@@ -129,7 +148,11 @@ export class UnifiedMemoryModifyHandler {
   // Memory operations
   private async handleUpdate(request: MemoryModifyRequest): Promise<any> {
     if (!request.target || !request.changes) {
-      throw new Error('target and changes are required for update operation');
+      throw new MCPValidationError(
+        'target and changes are required for update operation',
+        MCPErrorCodes.VALIDATION_FAILED,
+        { hasTarget: !!request.target, hasChanges: !!request.changes }
+      );
     }
     
     return await this.memoryHandler.handleMemoryManage({
@@ -140,7 +163,10 @@ export class UnifiedMemoryModifyHandler {
 
   private async handleDelete(request: MemoryModifyRequest): Promise<any> {
     if (!request.target) {
-      throw new Error('target is required for delete operation');
+      throw new MCPValidationError(
+        'target is required for delete operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.memoryHandler.handleMemoryManage({
@@ -151,7 +177,10 @@ export class UnifiedMemoryModifyHandler {
 
   private async handleBatchDelete(request: MemoryModifyRequest): Promise<any> {
     if (!request.targets || request.targets.length === 0) {
-      throw new Error('targets array is required for batch-delete operation');
+      throw new MCPValidationError(
+        'targets array is required for batch-delete operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.memoryHandler.handleMemoryManage({
@@ -163,7 +192,10 @@ export class UnifiedMemoryModifyHandler {
   // Observation operations
   private async handleAddObservations(request: MemoryModifyRequest): Promise<any> {
     if (!request.observations || request.observations.length === 0) {
-      throw new Error('observations array is required for add-observations operation');
+      throw new MCPValidationError(
+        'observations array is required for add-observations operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.observationHandler.handleObservationManage({
@@ -174,7 +206,10 @@ export class UnifiedMemoryModifyHandler {
 
   private async handleDeleteObservations(request: MemoryModifyRequest): Promise<any> {
     if (!request.observations || request.observations.length === 0) {
-      throw new Error('observations array is required for delete-observations operation');
+      throw new MCPValidationError(
+        'observations array is required for delete-observations operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.observationHandler.handleObservationManage({
@@ -186,7 +221,10 @@ export class UnifiedMemoryModifyHandler {
   // Relation operations
   private async handleCreateRelations(request: MemoryModifyRequest): Promise<any> {
     if (!request.relations || request.relations.length === 0) {
-      throw new Error('relations array is required for create-relations operation');
+      throw new MCPValidationError(
+        'relations array is required for create-relations operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.relationHandler.handleRelationManage({
@@ -203,7 +241,10 @@ export class UnifiedMemoryModifyHandler {
 
   private async handleUpdateRelations(request: MemoryModifyRequest): Promise<any> {
     if (!request.relations || request.relations.length === 0) {
-      throw new Error('relations array is required for update-relations operation');
+      throw new MCPValidationError(
+        'relations array is required for update-relations operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     // Direct session access pattern from existing handlers
@@ -228,20 +269,27 @@ export class UnifiedMemoryModifyHandler {
         
         const updated = await relationRepo.updateEnhancedRelation(session, updateRequest);
         
+        if (!updated) {
+          throw new MCPOperationError(
+            `Relation not found: ${relation.from} → ${relation.to} (${relation.type})`,
+            MCPErrorCodes.RESOURCE_NOT_FOUND
+          );
+        }
+        
         results.push({
           fromId: relation.from,
           toId: relation.to,
           relationType: relation.type,
-          status: updated ? "updated" : "not_found"
+          status: "updated"
         });
       } catch (error) {
-        results.push({
-          fromId: relation.from,
-          toId: relation.to,
-          relationType: relation.type,
-          status: "failed",
-          error: error instanceof Error ? error.message : String(error)
-        });
+        if (error instanceof MCPError) {
+          throw error;
+        }
+        throw new MCPDatabaseError(
+          `Failed to update relation: ${error instanceof Error ? error.message : String(error)}`,
+          MCPErrorCodes.DATABASE_OPERATION_FAILED
+        );
       } finally {
         await session.close();
       }
@@ -268,7 +316,10 @@ export class UnifiedMemoryModifyHandler {
 
   private async handleDeleteRelations(request: MemoryModifyRequest): Promise<any> {
     if (!request.relations || request.relations.length === 0) {
-      throw new Error('relations array is required for delete-relations operation');
+      throw new MCPValidationError(
+        'relations array is required for delete-relations operation',
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
     
     return await this.relationHandler.handleRelationManage({
@@ -328,7 +379,10 @@ export class UnifiedMemoryModifyHandler {
   // Validation
   private validateModifyRequest(request: MemoryModifyRequest): void {
     if (!request.operation) {
-      throw new Error('operation is required');
+      throw new MCPValidationError(
+        'operation is required', 
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
 
     // Operation-specific validation
@@ -338,19 +392,31 @@ export class UnifiedMemoryModifyHandler {
     const needsRelations = ['create-relations', 'update-relations', 'delete-relations'];
 
     if (needsTarget.includes(request.operation) && !request.target) {
-      throw new Error(`${request.operation} operation requires target parameter`);
+      throw new MCPValidationError(
+        `${request.operation} operation requires target parameter`,
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
 
     if (needsTargets.includes(request.operation) && (!request.targets || request.targets.length === 0)) {
-      throw new Error(`${request.operation} operation requires targets array`);
+      throw new MCPValidationError(
+        `${request.operation} operation requires targets array`,
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
 
     if (needsObservations.includes(request.operation) && (!request.observations || request.observations.length === 0)) {
-      throw new Error(`${request.operation} operation requires observations array`);
+      throw new MCPValidationError(
+        `${request.operation} operation requires observations array`,
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
 
     if (needsRelations.includes(request.operation) && (!request.relations || request.relations.length === 0)) {
-      throw new Error(`${request.operation} operation requires relations array`);
+      throw new MCPValidationError(
+        `${request.operation} operation requires relations array`,
+        MCPErrorCodes.INVALID_REQUEST_PARAMS
+      );
     }
   }
 }

@@ -7,6 +7,7 @@
 
 import { Session } from 'neo4j-driver';
 import neo4j from 'neo4j-driver';
+import { MCPServiceError, MCPErrorCodes } from '../../errors';
 
 export interface ExactMatchCandidate {
   id: string;
@@ -170,8 +171,25 @@ export class ExactSearchChannel {
       }
       
     } catch (error) {
-      console.error('[ExactSearchChannel] FULLTEXT index failure - check Neo4j configuration:', error);
-      throw new Error(`FULLTEXT search requires proper index configuration. Check that memory_metadata_idx and observation_content_idx indexes exist. Original error: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Check for specific fulltext index errors
+      if (errorMessage.includes('No such index') || errorMessage.includes('IndexNotFoundError')) {
+        throw new MCPServiceError(
+          'FULLTEXT indexes are missing. Check that memory_metadata_idx and observation_content_idx exist',
+          MCPErrorCodes.SERVICE_MISCONFIGURED,
+          { 
+            missingIndexes: ['memory_metadata_idx', 'observation_content_idx'],
+            createCommand: 'CREATE FULLTEXT INDEX ... IF NOT EXISTS'
+          }
+        );
+      }
+      
+      throw new MCPServiceError(
+        `FULLTEXT search failed: ${errorMessage}`,
+        MCPErrorCodes.SERVICE_ERROR,
+        { service: 'fulltext-search' }
+      );
     }
     
     return candidates;

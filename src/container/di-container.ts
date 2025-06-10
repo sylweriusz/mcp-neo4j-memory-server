@@ -197,7 +197,7 @@ export class DIContainer {
       try {
         await session.close();
       } catch (error) {
-        console.warn("[DIContainer] Session cleanup error:", error);
+        // Session cleanup error - ignore during shutdown
       }
     }
     this.activeSessions = [];

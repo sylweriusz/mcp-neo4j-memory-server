@@ -3,7 +3,7 @@
 name: Neo4j Knowledge Graph Memory
 description: A Model Context Protocol (MCP) server that uses Neo4j as a backend for persistent memory storage and retrieval. Features unified tools for memory operations, enhanced semantic search, and sophisticated graph traversal capabilities.
 license: MIT
-version: 3.0.2
+version: 3.1.0
 author: sylweriusz
 repository: https://github.com/sylweriusz/mcp-neo4j-memory-server
 

@@ -5,6 +5,7 @@
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { createErrorMessage } from '../../infrastructure/utilities';
+import { MCPResourceNotFoundError, MCPValidationError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export interface ObservationRequest {
   memoryId: string;
@@ -19,7 +20,7 @@ export class ManageObservationsUseCase {
   async addObservations(request: ObservationRequest): Promise<void> {
     const memory = await this.memoryRepository.findById(request.memoryId);
     if (!memory) {
-      throw new Error(`Memory with id ${request.memoryId} not found`);
+      throw new MCPResourceNotFoundError('Memory', request.memoryId, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     // Add observations to the memory
@@ -32,7 +33,7 @@ export class ManageObservationsUseCase {
   async deleteObservations(request: ObservationRequest): Promise<void> {
     const memory = await this.memoryRepository.findById(request.memoryId);
     if (!memory) {
-      throw new Error(`Memory with id ${request.memoryId} not found`);
+      throw new MCPResourceNotFoundError('Memory', request.memoryId, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     // VALIDATE: For delete operation, ensure contents are observation IDs
@@ -77,12 +78,13 @@ export class ManageObservationsUseCase {
   private validateObservationIds(contents: string[]): void {
     for (const content of contents) {
       if (!this.isValidObservationId(content)) {
-        throw new Error(
+        throw new MCPValidationError(
           `DELETE operation requires observation IDs, not content strings. ` +
           `Received: "${content}". ` +
           `Expected: 18-character BASE85 identifier (e.g., "dZD1/D-Ljt*!I?R)\`-"). ` +
           `To delete observations: 1) First search/retrieve memory to get observation IDs, ` +
-          `2) Then use those IDs for deletion.`
+          `2) Then use those IDs for deletion.`,
+          MCPErrorCodes.INVALID_OBSERVATION_CONTENT
         );
       }
     }

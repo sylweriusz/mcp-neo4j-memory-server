@@ -5,6 +5,8 @@
  * THE IMPLEMENTOR'S RULE: Build exactly what's specified in GDD v2.3.1
  */
 
+import { MCPValidationError, MCPErrorCodes } from '../../errors';
+
 export enum QueryType {
   WILDCARD = 'wildcard',
   EXACT_SEARCH = 'exact_search',
@@ -29,14 +31,20 @@ export class QueryClassifier {
   
   classify(query: string): QueryIntent {
     if (query === null || query === undefined || typeof query !== 'string') {
-      throw new Error('Query must be a non-empty string');
+      throw new MCPValidationError(
+        'Query must be a non-empty string',
+        MCPErrorCodes.INVALID_SEARCH_QUERY
+      );
     }
 
     const trimmed = query.trim();
     
     // Check for whitespace-only strings (but allow truly empty strings)
     if (query.length > 0 && trimmed.length === 0) {
-      throw new Error('Query must be a non-empty string');
+      throw new MCPValidationError(
+        'Query must be a non-empty string',
+        MCPErrorCodes.INVALID_SEARCH_QUERY
+      );
     }
     
     const normalized = trimmed.toLowerCase();

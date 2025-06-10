@@ -15,6 +15,7 @@
 import { Session } from 'neo4j-driver';
 import neo4j from 'neo4j-driver';
 import { calculateEmbedding, Vector } from '../../utilities';
+import { MCPServiceError, MCPErrorCodes } from '../../errors';
 
 export interface VectorCandidate {
   id: string;
@@ -60,7 +61,11 @@ export class VectorSearchChannel {
       
       const similarity = result.records[0]?.get('similarity');
       if (typeof similarity !== 'number') {
-        throw new Error('GDS function returned invalid result');
+        throw new MCPServiceError(
+          'GDS function returned invalid result',
+          MCPErrorCodes.SERVICE_MISCONFIGURED,
+          { service: 'neo4j-gds', expectedType: 'number', actualType: typeof similarity }
+        );
       }
       
       this.gdsVerified = true;
@@ -72,16 +77,16 @@ export class VectorSearchChannel {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       // ZERO-FALLBACK: Provide clear setup instructions instead of silently degrading
-      throw new Error(`
-Neo4j Graph Data Science (GDS) plugin is required but not available.
-
-Error: ${errorMessage}
-
-Install DozerDB with GDS plugin: https://dozerdb.org/
-Verify installation: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
-
-This system requires GDS for vector similarity operations. No fallback mode available.
-      `.trim());
+      throw new MCPServiceError(
+        'Neo4j Graph Data Science (GDS) plugin is required but not installed',
+        MCPErrorCodes.REQUIRED_SERVICE_MISSING,
+        { 
+          service: 'neo4j-gds',
+          installUrl: 'https://dozerdb.org/',
+          verifyCommand: 'RETURN gds.similarity.cosine([1,2,3], [2,3,4])',
+          originalError: errorMessage
+        }
+      );
     }
   }
 
@@ -147,17 +152,23 @@ This system requires GDS for vector similarity operations. No fallback mode avai
       
       // Check if it's a GDS-specific error
       if (errorMessage.includes('gds.similarity') || errorMessage.includes('Unknown function')) {
-        throw new Error(`
-GDS vector search failed. The plugin may have been disabled or removed.
-
-Error: ${errorMessage}
-
-Please verify GDS installation with: RETURN gds.similarity.cosine([1,2,3], [2,3,4])
-        `.trim());
+        throw new MCPServiceError(
+          'GDS vector search failed. The plugin may have been disabled or removed',
+          MCPErrorCodes.SERVICE_UNAVAILABLE,
+          {
+            service: 'neo4j-gds',
+            originalError: errorMessage,
+            verifyCommand: 'RETURN gds.similarity.cosine([1,2,3], [2,3,4])'
+          }
+        );
       }
       
-      // Re-throw other errors as-is
-      throw new Error(`Vector search query failed: ${errorMessage}`);
+      // Re-throw other errors with context
+      throw new MCPServiceError(
+        `Vector search query failed: ${errorMessage}`,
+        MCPErrorCodes.SERVICE_ERROR,
+        { service: 'vector-search', query: 'gds-similarity' }
+      );
     }
   }
 

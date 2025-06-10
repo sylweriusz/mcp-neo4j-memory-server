@@ -5,6 +5,7 @@
 
 import { MemoryRepository } from '../../domain/repositories/memory-repository';
 import { createErrorMessage } from '../../infrastructure/utilities';
+import { MCPResourceNotFoundError, MCPErrorCodes } from '../../infrastructure/errors';
 
 export class DeleteMemoryUseCase {
   constructor(private memoryRepository: MemoryRepository) {}
@@ -12,7 +13,7 @@ export class DeleteMemoryUseCase {
   async execute(id: string): Promise<boolean> {
     const existingMemory = await this.memoryRepository.findById(id);
     if (!existingMemory) {
-      throw new Error(`Memory with id ${id} not found`);
+      throw new MCPResourceNotFoundError('Memory', id, MCPErrorCodes.MEMORY_NOT_FOUND);
     }
 
     return await this.memoryRepository.delete(id);

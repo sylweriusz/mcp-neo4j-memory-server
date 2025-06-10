@@ -16,6 +16,11 @@ import {
   type GraphTraversalOptions
 } from './services';
 import { WildcardSearchService } from '../../infrastructure/services/search/wildcard-search-service';
+import { 
+  MCPValidationError, 
+  MCPServiceError,
+  MCPErrorCodes 
+} from '../../infrastructure/errors';
 
 export interface MemoryFindRequest {
   query: string | string[];
@@ -104,7 +109,19 @@ export class UnifiedMemoryFindHandler {
       };
       
     } catch (error) {
-      throw new Error(`Memory find failed: ${error instanceof Error ? error.message : String(error)}`);
+      // Detect specific error types
+      if (error instanceof Error && error.message.includes('Invalid context level')) {
+        throw new MCPValidationError(
+          error.message,
+          MCPErrorCodes.INVALID_CONTEXT_LEVEL
+        );
+      }
+      
+      throw new MCPServiceError(
+        `Memory find failed: ${error instanceof Error ? error.message : String(error)}`,
+        MCPErrorCodes.SERVICE_UNAVAILABLE,
+        { originalError: error instanceof Error ? error.message : String(error) }
+      );
     }
   }
 
@@ -113,7 +130,10 @@ export class UnifiedMemoryFindHandler {
    */
   private async handleGraphTraversal(request: MemoryFindRequest): Promise<any> {
     if (!request.traverseFrom) {
-      throw new Error('traverseFrom is required for graph traversal');
+      throw new MCPValidationError(
+        'traverseFrom is required for graph traversal',
+        MCPErrorCodes.VALIDATION_FAILED
+      );
     }
 
     const traversalOptions: GraphTraversalOptions = {
@@ -256,7 +276,11 @@ export class UnifiedMemoryFindHandler {
    */
   private async handleSearch(request: MemoryFindRequest): Promise<any> {
     if (typeof request.query !== 'string') {
-      throw new Error('Query must be string for search operation');
+      throw new MCPValidationError(
+        'Query must be string for search operation',
+        MCPErrorCodes.INVALID_QUERY,
+        { queryType: typeof request.query }
+      );
     }
 
     // Process date filters if provided
@@ -395,15 +419,26 @@ export class UnifiedMemoryFindHandler {
   }
   private validateFindRequest(request: MemoryFindRequest): void {
     if (!request.query) {
-      throw new Error('query parameter is required');
+      throw new MCPValidationError(
+        'query parameter is required',
+        MCPErrorCodes.VALIDATION_FAILED
+      );
     }
 
     if (request.limit !== undefined && request.limit <= 0) {
-      throw new Error('limit must be positive');
+      throw new MCPValidationError(
+        'limit must be positive',
+        MCPErrorCodes.INVALID_PARAMS,
+        { limit: request.limit }
+      );
     }
 
     if (request.threshold !== undefined && (request.threshold < 0 || request.threshold > 1)) {
-      throw new Error('threshold must be between 0.0 and 1.0');
+      throw new MCPValidationError(
+        'threshold must be between 0.0 and 1.0',
+        MCPErrorCodes.VALIDATION_FAILED,
+        { threshold: request.threshold }
+      );
     }
 
     // Validate context level
@@ -414,13 +449,20 @@ export class UnifiedMemoryFindHandler {
     // Validate order by
     const validOrderBy = ["relevance", "created", "modified", "accessed"];
     if (request.orderBy && !validOrderBy.includes(request.orderBy)) {
-      throw new Error(`Invalid orderBy: ${request.orderBy}. Valid options: ${validOrderBy.join(', ')}`);
+      throw new MCPValidationError(
+        `Invalid orderBy: ${request.orderBy}. Valid options: ${validOrderBy.join(', ')}`,
+        MCPErrorCodes.VALIDATION_FAILED,
+        { providedOrderBy: request.orderBy, validOptions: validOrderBy }
+      );
     }
 
     // Validate graph traversal parameters
     if (request.traverseFrom || request.traverseRelations || request.maxDepth || request.traverseDirection) {
       if (!request.traverseFrom) {
-        throw new Error('traverseFrom is required when using graph traversal parameters');
+        throw new MCPValidationError(
+          'traverseFrom is required when using graph traversal parameters',
+          MCPErrorCodes.INVALID_TRAVERSAL_OPTIONS
+        );
       }
     }
   }

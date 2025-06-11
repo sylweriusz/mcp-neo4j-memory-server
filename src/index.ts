@@ -24,7 +24,7 @@ import { toMCPError } from "./infrastructure/errors";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server", 
-  version: "3.1.0" // Version from package.json
+  version: "3.1.1" // Version from package.json
 });
 
 // Lazy handler factory - safe for tool scanning
@@ -72,28 +72,28 @@ const getHandlers = async () => {
 // Tool 1: memory_store
 server.tool(
   "memory_store",
-  "Creates new memories with observations and establishes relationships in one atomic operation. Use 'localId' for cross-references within THIS request only. Metadata = classification, observations = content. Include language in metadata. **Always search before creating to avoid duplicates.**",
+  "Creates new memories with observations and establishes relationships in one atomic operation. Use 'localId' for cross-references within THIS request only. Metadata stores classification info (language, project, tags). **Always search before creating to avoid duplicates.**",
   {
     memories: z.array(z.object({
       name: z.string().describe("Human-readable memory name. Make it descriptive and searchable."),
       memoryType: z.string().describe("Memory classification (e.g., knowledge, decision, pattern, implementation, architecture)"),
       localId: z.string().optional().describe("Temporary reference ID valid ONLY within this request. Use for relations between new memories."),
-      observations: z.array(z.string()).describe("Content fragments. **One session = one observation.** Don't over-fragment. Add what you learned NOW."),
+      observations: z.array(z.string()).describe("Content to store. **One session = one observation per memory.** Each string becomes one observation. Don't split single thoughts into multiple strings."),
       metadata: z.record(z.any()).optional().describe("Classification data. Include: language, project, status, tags, dates, etc.")
     })).describe("Array of memories to create. Check if similar memories exist first."),
     relations: z.array(z.object({
       from: z.string().describe("Source localId or existing memoryId"),
       to: z.string().describe("Target localId or existing memoryId"),
       type: z.string().describe("Relationship type: INFLUENCES, DEPENDS_ON, EXTENDS, IMPLEMENTS, CONTAINS, etc."),
-      strength: z.number().min(0.0).max(1.0).optional().describe("0.0-1.0, defaults to 0.5"),
+      strength: z.number().min(0.1).max(1.0).optional().describe("0.1-1.0, defaults to 0.5"),
       source: z.enum(['agent', 'user', 'system']).optional().describe("defaults to 'agent'")
     })).optional().describe("Relationships to create between memories."),
     options: z.object({
       validateReferences: z.boolean().optional().describe("Check all target IDs exist (default: true)"),
       allowDuplicateRelations: z.boolean().optional().describe("Skip/error on duplicates (default: false)"),
       transactional: z.boolean().optional().describe("All-or-nothing behavior (default: true)"),
-      maxMemories: z.number().optional().describe("Batch size limit (default: 50)"),
-      maxRelations: z.number().optional().describe("Relations limit (default: 200)")
+      maxMemories: z.number().optional().describe("Batch size limit per request (default: 50)"),
+      maxRelations: z.number().optional().describe("Relations limit per request (default: 200)")
     }).optional().describe("Store options")
   },
   async (args) => {
@@ -123,7 +123,7 @@ server.tool(
     limit: z.number().optional().describe("Maximum results to return. Default: 10, use higher for comprehensive searches"),
     memoryTypes: z.array(z.string()).optional().describe("Filter by types (e.g., ['knowledge', 'decision']). Leave empty for all types."),
     includeContext: z.enum(["minimal", "full", "relations-only"]).optional().describe("Detail level: 'minimal' (id/name/type only), 'full' (everything), 'relations-only' (graph data)"),
-    threshold: z.number().min(0.0).max(1.0).optional().describe("Minimum semantic match score (0.0-1.0). Lower = more results. Default: 0.1"),
+    threshold: z.number().min(0.01).max(1.0).optional().describe("Minimum semantic match score (0.01-1.0). Lower = more results. Default: 0.1"),
     orderBy: z.enum(["relevance", "created", "modified", "accessed"]).optional().describe("Sort order (default: 'relevance')"),
     
     // Date-based filtering
@@ -159,7 +159,7 @@ server.tool(
 // Tool 3: memory_modify
 server.tool(
   "memory_modify",
-  "Modifies existing memories: update properties, manage observations, handle relationships. Use for adding to existing memories. **One session = one observation.** All operations are transactional (all-or-nothing).",
+  "Modifies existing memories: update properties, manage observations, handle relationships. Use for adding new observations to existing memories. **One session = typically one observation per memory.** All operations are transactional (all-or-nothing).",
   {
     operation: z.enum([
       "update", "delete", "batch-delete",
@@ -175,13 +175,13 @@ server.tool(
     }).optional().describe("For update operations"),
     observations: z.array(z.object({
       memoryId: z.string().describe("Target memory ID"),
-      contents: z.array(z.string()).describe("For add: observation text(s). For delete: observation IDs. Don't over-fragment when adding.")
-    })).optional().describe("Observations to add/delete. **Add what you learned in THIS session as ONE observation.**"),
+      contents: z.array(z.string()).describe("For add: new observation text(s) - typically one per session. For delete: observation IDs to remove.")
+    })).optional().describe("Observations to add/delete. **Add what you learned in THIS session as ONE observation per memory.**"),
     relations: z.array(z.object({
       from: z.string().describe("Source memory ID"),
       to: z.string().describe("Target memory ID"),
       type: z.string().describe("Relationship type: INFLUENCES, DEPENDS_ON, EXTENDS, IMPLEMENTS, CONTAINS, etc."),
-      strength: z.number().min(0.0).max(1.0).optional().describe("For create/update operations (0.0-1.0)"),
+      strength: z.number().min(0.1).max(1.0).optional().describe("For create/update operations (0.1-1.0)"),
       source: z.enum(['agent', 'user', 'system']).optional().describe("For create operations")
     })).optional().describe("Relationships to create/update/delete between existing memories."),
     options: z.object({

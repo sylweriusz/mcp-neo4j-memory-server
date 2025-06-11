@@ -1,36 +1,27 @@
 /**
  * Lazy HTTP Handlers
  * Wrappery dla prawdziwych handlerów z lazy initialization
- * Inicjalizacja następuje dopiero przy pierwszym wywołaniu metody
+ * Używa dynamicznych importów aby uniknąć inicjalizacji podczas ładowania modułu
  */
-
-import { 
-  McpMemoryHandler, 
-  McpObservationHandler, 
-  McpRelationHandler, 
-  McpDatabaseHandler 
-} from "../../application/mcp-handlers";
-import {
-  UnifiedMemoryStoreHandler,
-  UnifiedMemoryFindHandler,
-  UnifiedMemoryModifyHandler
-} from "../../application/unified-handlers";
 
 /**
  * Lazy wrapper dla database handler
  */
 export class LazyDatabaseHandler {
-  private handler?: McpDatabaseHandler;
+  private handler?: any;
   
-  private getHandler(): McpDatabaseHandler {
+  private async getHandler(): Promise<any> {
     if (!this.handler) {
+      // Dynamiczny import - tylko gdy potrzebny
+      const { McpDatabaseHandler } = await import("../../application/mcp-handlers");
       this.handler = new McpDatabaseHandler();
     }
     return this.handler;
   }
   
   async handleDatabaseSwitch(databaseName: string): Promise<any> {
-    return this.getHandler().handleDatabaseSwitch(databaseName);
+    const handler = await this.getHandler();
+    return handler.handleDatabaseSwitch(databaseName);
   }
 }
 
@@ -38,26 +29,29 @@ export class LazyDatabaseHandler {
  * Lazy wrapper dla unified store handler
  */
 export class LazyUnifiedStoreHandler {
-  private handler?: UnifiedMemoryStoreHandler;
-  private memoryHandler?: McpMemoryHandler;
-  private relationHandler?: McpRelationHandler;
+  private handler?: any;
   
-  private getHandler(): UnifiedMemoryStoreHandler {
+  private async getHandler(): Promise<any> {
     if (!this.handler) {
-      // Tworzymy zależności tylko gdy potrzebne
-      if (!this.memoryHandler) {
-        this.memoryHandler = new McpMemoryHandler();
-      }
-      if (!this.relationHandler) {
-        this.relationHandler = new McpRelationHandler();
-      }
-      this.handler = new UnifiedMemoryStoreHandler(this.memoryHandler, this.relationHandler);
+      // Dynamiczne importy - tylko gdy potrzebne
+      const [
+        { McpMemoryHandler, McpRelationHandler },
+        { UnifiedMemoryStoreHandler }
+      ] = await Promise.all([
+        import("../../application/mcp-handlers"),
+        import("../../application/unified-handlers")
+      ]);
+      
+      const memoryHandler = new McpMemoryHandler();
+      const relationHandler = new McpRelationHandler();
+      this.handler = new UnifiedMemoryStoreHandler(memoryHandler, relationHandler);
     }
     return this.handler;
   }
   
   async handleMemoryStore(args: any): Promise<any> {
-    return this.getHandler().handleMemoryStore(args);
+    const handler = await this.getHandler();
+    return handler.handleMemoryStore(args);
   }
 }
 
@@ -65,21 +59,28 @@ export class LazyUnifiedStoreHandler {
  * Lazy wrapper dla unified find handler
  */
 export class LazyUnifiedFindHandler {
-  private handler?: UnifiedMemoryFindHandler;
-  private memoryHandler?: McpMemoryHandler;
+  private handler?: any;
   
-  private getHandler(): UnifiedMemoryFindHandler {
+  private async getHandler(): Promise<any> {
     if (!this.handler) {
-      if (!this.memoryHandler) {
-        this.memoryHandler = new McpMemoryHandler();
-      }
-      this.handler = new UnifiedMemoryFindHandler(this.memoryHandler);
+      // Dynamiczne importy
+      const [
+        { McpMemoryHandler },
+        { UnifiedMemoryFindHandler }
+      ] = await Promise.all([
+        import("../../application/mcp-handlers"),
+        import("../../application/unified-handlers")
+      ]);
+      
+      const memoryHandler = new McpMemoryHandler();
+      this.handler = new UnifiedMemoryFindHandler(memoryHandler);
     }
     return this.handler;
   }
   
   async handleMemoryFind(args: any): Promise<any> {
-    return this.getHandler().handleMemoryFind(args);
+    const handler = await this.getHandler();
+    return handler.handleMemoryFind(args);
   }
 }
 
@@ -87,40 +88,41 @@ export class LazyUnifiedFindHandler {
  * Lazy wrapper dla unified modify handler
  */
 export class LazyUnifiedModifyHandler {
-  private handler?: UnifiedMemoryModifyHandler;
-  private memoryHandler?: McpMemoryHandler;
-  private observationHandler?: McpObservationHandler;
-  private relationHandler?: McpRelationHandler;
+  private handler?: any;
   
-  private getHandler(): UnifiedMemoryModifyHandler {
+  private async getHandler(): Promise<any> {
     if (!this.handler) {
-      // Tworzymy zależności tylko gdy potrzebne
-      if (!this.memoryHandler) {
-        this.memoryHandler = new McpMemoryHandler();
-      }
-      if (!this.observationHandler) {
-        this.observationHandler = new McpObservationHandler();
-      }
-      if (!this.relationHandler) {
-        this.relationHandler = new McpRelationHandler();
-      }
+      // Dynamiczne importy
+      const [
+        { McpMemoryHandler, McpObservationHandler, McpRelationHandler },
+        { UnifiedMemoryModifyHandler }
+      ] = await Promise.all([
+        import("../../application/mcp-handlers"),
+        import("../../application/unified-handlers")
+      ]);
+      
+      const memoryHandler = new McpMemoryHandler();
+      const observationHandler = new McpObservationHandler();
+      const relationHandler = new McpRelationHandler();
+      
       this.handler = new UnifiedMemoryModifyHandler(
-        this.memoryHandler,
-        this.observationHandler,
-        this.relationHandler
+        memoryHandler,
+        observationHandler,
+        relationHandler
       );
     }
     return this.handler;
   }
   
   async handleMemoryModify(args: any): Promise<any> {
-    return this.getHandler().handleMemoryModify(args);
+    const handler = await this.getHandler();
+    return handler.handleMemoryModify(args);
   }
 }
 
 /**
  * Fabryka lazy handlerów dla HTTP
- * Inicjalizacja database następuje tylko raz przy pierwszym użyciu
+ * Zwraca natychmiast bez żadnych importów czy inicjalizacji
  */
 export async function createLazyHandlers() {
   // Zwracamy natychmiast - bez żadnej inicjalizacji

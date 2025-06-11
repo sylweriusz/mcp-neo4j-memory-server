@@ -16,18 +16,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-// Import existing MCP handlers
-import { 
-  McpMemoryHandler, 
-  McpObservationHandler, 
-  McpRelationHandler, 
-  McpDatabaseHandler 
-} from "../application/mcp-handlers";
-import {
-  UnifiedMemoryStoreHandler,
-  UnifiedMemoryFindHandler,
-  UnifiedMemoryModifyHandler
-} from "../application/unified-handlers";
+// Import lazy handlers for HTTP
+import { createLazyHandlers } from "./lazy-handlers";
 import {
   MCPValidationError,
   MCPDatabaseError,
@@ -43,7 +33,7 @@ import {
 function createMCPServer(): McpServer {
   const server = new McpServer({
     name: "neo4j-memory-server",
-    version: "3.1.1"
+    version: "3.1.2"
   });
 
   // Lazy handler factory - safe for tool scanning
@@ -51,22 +41,10 @@ function createMCPServer(): McpServer {
   const getHandlers = async () => {
     if (!handlerPromise) {
       handlerPromise = (async () => {
-        // Initialize existing handlers
-        const memoryHandler = new McpMemoryHandler();
-        const observationHandler = new McpObservationHandler();
-        const relationHandler = new McpRelationHandler();
-        const databaseHandler = new McpDatabaseHandler();
+        // Use lazy handlers that don't initialize until first use
+        const handlers = await createLazyHandlers();
         
-        // Initialize unified handlers
-        const unifiedStoreHandler = new UnifiedMemoryStoreHandler(memoryHandler, relationHandler);
-        const unifiedFindHandler = new UnifiedMemoryFindHandler(memoryHandler);
-        const unifiedModifyHandler = new UnifiedMemoryModifyHandler(
-          memoryHandler, 
-          observationHandler, 
-          relationHandler
-        );
-        
-        // Only initialize database if we have connection config
+        // Only initialize database connection if we have config
         const hasDbConfig = process.env.NEO4J_URI || process.env.NEO4J_USERNAME;
         if (hasDbConfig) {
           const { DIContainer } = await import("../container/di-container");
@@ -74,12 +52,7 @@ function createMCPServer(): McpServer {
           await container.initializeDatabase();
         }
         
-        return { 
-          databaseHandler,
-          unifiedStoreHandler,
-          unifiedFindHandler,
-          unifiedModifyHandler
-        };
+        return handlers;
       })();
     }
     return handlerPromise;

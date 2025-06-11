@@ -24,7 +24,7 @@ import { toMCPError } from "./infrastructure/errors";
 // Create an MCP server with proper configuration
 const server = new McpServer({
   name: "neo4j-memory-server", 
-  version: "3.1.1" // Version from package.json
+  version: "3.1.2" // Version from package.json
 });
 
 // Lazy handler factory - safe for tool scanning
